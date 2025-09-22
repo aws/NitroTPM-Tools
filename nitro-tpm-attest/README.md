@@ -69,3 +69,12 @@ openssl cms \
     -inform DER \
     -in <(base64 --decode <<< "$plaintext_cms")
 ```
+
+## Static Builds
+
+For static linking requirements, a Docker-based build environment is provided that can be used to statically link the TPM2 Software Stack (TSS2) and other dependencies.
+
+```console
+docker build --file docker/builder.Dockerfile --tag nitro-tpm-tools-builder .
+docker run --rm --tty --volume cargo-cache:/root/.cargo/registry --volume $PWD:/mnt nitro-tpm-tools-builder cargo build --package nitro-tpm-attest --release
+```

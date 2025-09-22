@@ -16,4 +16,7 @@ fn main() {
         tss_version_requirement.matches(&tss_version),
         "TPM2 Software Stack (TSS) version {tss_version} not supported, version requirement: {tss_version_requirement}",
     );
+
+    // Allow static linking
+    println!("cargo:rustc-link-arg=-ltss2-tcti-device");
 }
