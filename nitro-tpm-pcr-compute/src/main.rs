@@ -47,7 +47,7 @@ impl SecureBootArguments {
     }
 
     fn secure_boot(&self) -> [u8; 1] {
-        [self.secure_boot_enabled() as u8; 1]
+        [u8::from(self.secure_boot_enabled()); 1]
     }
 
     fn platform_key(&self) -> Result<Vec<u8>, std::io::Error> {
@@ -380,7 +380,7 @@ fn variable_hash(
 ) -> aws_lc_rs::digest::Digest {
     let variable_name_utf16_bytes: Vec<u8> = variable_name
         .encode_utf16()
-        .flat_map(|character| character.to_le_bytes())
+        .flat_map(u16::to_le_bytes)
         .collect();
 
     aws_lc_rs::digest::digest(

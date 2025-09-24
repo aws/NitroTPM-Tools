@@ -47,7 +47,7 @@ pub fn attestation_document(
 
     let endorsement_key = tss::EndorsementKey::new(&tpm_manager)?;
     let (message_buffer, message_buffer_name) =
-        tss::MessageBuffer::from_request(&tpm_manager, endorsement_key.tpm_handle(), nsm_request)?;
+        tss::MessageBuffer::from_request(&tpm_manager, endorsement_key.tpm_handle(), &nsm_request)?;
 
     raw::nsm_request(
         &tpm_manager,

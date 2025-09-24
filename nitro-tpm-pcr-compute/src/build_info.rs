@@ -17,11 +17,16 @@ impl BuildInfo {
     }
 
     pub(crate) fn add_measurement(&mut self, index: u8, digest: aws_lc_rs::digest::Digest) {
-        let digest_hex: String = digest
-            .as_ref()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
+        use std::fmt::Write as _;
+
+        let digest_hex: String = digest.as_ref().iter().fold(
+            String::with_capacity(digest.as_ref().len() * 2),
+            |mut digest_hex, byte| {
+                let _ = write!(digest_hex, "{byte:02x}");
+
+                digest_hex
+            },
+        );
 
         self.measurements.insert(format!("PCR{index}"), digest_hex);
     }

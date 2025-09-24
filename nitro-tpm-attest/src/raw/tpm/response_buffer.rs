@@ -26,7 +26,7 @@ impl<'a> Parser<'a> {
             return Err(Error::TpmErrorResponse(
                 tss_esapi::constants::response_code::Tss2ResponseCode::from(response_code),
             ));
-        };
+        }
 
         Ok(Self { data })
     }

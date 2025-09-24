@@ -35,7 +35,7 @@ impl<'a> MessageBuffer<'a> {
     pub(crate) fn from_request(
         tpm_manager: &'a std::cell::RefCell<crate::TpmManager>,
         salt_key_tpm_handle: tss_esapi::handles::TpmHandle,
-        nsm_request: nsm_api::Request,
+        nsm_request: &nsm_api::Request,
     ) -> Result<(Self, tss_esapi::structures::Name), Error> {
         // The plain attestation document (without any optional parameters) will be almost 5 KiB and
         // the optional parameters are each limited to 1 KiB

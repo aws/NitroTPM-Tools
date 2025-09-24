@@ -88,16 +88,8 @@ impl Tpm {
             tss_esapi::constants::tss::TPM2_CC_StartAuthSession,
         )
         // Handles
-        .add_u32(
-            salt_key_handle
-                .map(Into::<u32>::into)
-                .unwrap_or(tss_esapi::constants::tss::TPM2_RH_NULL),
-        )
-        .add_u32(
-            bind_handle
-                .map(Into::<u32>::into)
-                .unwrap_or(tss_esapi::constants::tss::TPM2_RH_NULL),
-        )
+        .add_u32(salt_key_handle.map_or(tss_esapi::constants::tss::TPM2_RH_NULL, Into::<u32>::into))
+        .add_u32(bind_handle.map_or(tss_esapi::constants::tss::TPM2_RH_NULL, Into::<u32>::into))
         // Parameters
         .add_sized_buffer(nonce_caller.as_slice())
         .add_sized_buffer(encrypted_salt.as_slice())
