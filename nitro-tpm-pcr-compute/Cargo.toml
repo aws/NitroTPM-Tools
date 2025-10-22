@@ -1,9 +1,13 @@
 [package]
 name = "nitro-tpm-pcr-compute"
 version = "1.0.0"
+description = "Precompute NitroTPM Platform Configuration Register (PCR) values based on a Unified Kernel Image (UKI)"
 edition = "2024"
 authors = ["Marius Knaust <mknaust@amazon.com>"]
+repository = "https://github.com/aws/NitroTPM-Tools"
 readme = "README.md"
+license-file = "../LICENSE"
+keywords = ["aws", "nitro", "nitrotpm", "attestation", "tpm"]
 
 [dependencies]
 anyhow = "1.0"
