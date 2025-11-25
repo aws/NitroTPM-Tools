@@ -5,30 +5,29 @@
 #[derive(serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub(crate) struct BuildInfo {
-    measurements: std::collections::BTreeMap<String, String>,
+    measurements: Measurements,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct Measurements {
+    hash_algorithm: String,
+    #[serde(flatten, serialize_with = "serialize_pcr_map")]
+    pcrs: std::collections::BTreeMap<u8, aws_lc_rs::digest::Digest>,
 }
 
 impl BuildInfo {
     pub(crate) fn new<Hasher: std::fmt::Debug>(hasher: &Hasher) -> Self {
         Self {
-            measurements: std::iter::once(("HashAlgorithm".to_string(), format!("{hasher:?}")))
-                .collect(),
+            measurements: Measurements {
+                hash_algorithm: format!("{hasher:?}"),
+                pcrs: Default::default(),
+            },
         }
     }
 
     pub(crate) fn add_measurement(&mut self, index: u8, digest: aws_lc_rs::digest::Digest) {
-        use std::fmt::Write as _;
-
-        let digest_hex: String = digest.as_ref().iter().fold(
-            String::with_capacity(digest.as_ref().len() * 2),
-            |mut digest_hex, byte| {
-                let _ = write!(digest_hex, "{byte:02x}");
-
-                digest_hex
-            },
-        );
-
-        self.measurements.insert(format!("PCR{index}"), digest_hex);
+        self.measurements.pcrs.insert(index, digest);
     }
 }
 
@@ -38,4 +37,30 @@ impl std::fmt::Display for BuildInfo {
 
         write!(formatter, "{json}")
     }
+}
+
+fn serialize_pcr_map<S>(
+    map: &std::collections::BTreeMap<u8, aws_lc_rs::digest::Digest>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeMap as _;
+    use std::fmt::Write as _;
+
+    let mut map_serializer = serializer.serialize_map(Some(map.len()))?;
+
+    for (index, digest) in map {
+        let digest_hex: String = digest.as_ref().iter().fold(
+            String::with_capacity(digest.as_ref().len() * 2),
+            |mut digest_hex, byte| {
+                let _ = write!(digest_hex, "{byte:02x}");
+                digest_hex
+            },
+        );
+        map_serializer.serialize_entry(&format!("PCR{index}"), &digest_hex)?;
+    }
+
+    map_serializer.end()
 }
