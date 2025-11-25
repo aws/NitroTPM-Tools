@@ -127,13 +127,15 @@ fn pcr4<'a, Image>(
 where
     Image: object::Object<'a> + authenticode::PeTrait,
 {
+    let mut pcr4 = Pcr::new(algorithm);
+
     // Platform Firmware MUST record the EV_EFI_ACTION event “Calling EFI Application from Boot
     // Option”
     let action_hash =
         aws_lc_rs::digest::digest(algorithm, b"Calling EFI Application from Boot Option");
 
     log::debug!("[PCR4] EV_EFI_ACTION: {action_hash:?}");
-    let mut pcr4 = Pcr::new(algorithm, &action_hash);
+    pcr4.extend(&action_hash);
 
     // an EV_SEPARATOR event MUST be recorded in the event log for PCR[0-7] prior to the first
     // invocation of the first Ready to Boot call
@@ -224,6 +226,8 @@ where
         uuid::uuid!("d719b2cb-3d3a-4596-a3bc-dad00e67656f");
     const EFI_CERT_X509_GUID: uuid::Uuid = uuid::uuid!("a5c059a1-94e4-4aa7-87b5-ab155c2bf072");
 
+    let mut pcr7 = Pcr::new(algorithm);
+
     // 1. The contents of the SecureBoot variable
     let secure_boot_hash = variable_hash(
         algorithm,
@@ -233,7 +237,7 @@ where
     );
 
     log::debug!("[PCR7] EV_EFI_VARIABLE_DRIVER_CONFIG: {secure_boot_hash:?}");
-    let mut pcr7 = Pcr::new(algorithm, &secure_boot_hash);
+    pcr7.extend(&secure_boot_hash);
 
     // 2. The contents of the PK variable
     let pk_hash = variable_hash(

@@ -6,15 +6,14 @@ pub(crate) struct Pcr {
 }
 
 impl Pcr {
-    pub(crate) fn new(
-        algorithm: &'static aws_lc_rs::digest::Algorithm,
-        measurement: &aws_lc_rs::digest::Digest,
-    ) -> Self {
+    pub(crate) fn new(algorithm: &'static aws_lc_rs::digest::Algorithm) -> Self {
         Self {
-            digest: aws_lc_rs::digest::digest(
+            digest: aws_lc_rs::digest::Digest::import_less_safe(
+                &vec![0u8; algorithm.output_len],
                 algorithm,
-                &[&vec![0u8; algorithm.output_len], measurement.as_ref()].concat(),
-            ),
+            )
+            // SAFETY: algorithm.output_len always matches the algorithm's output size
+            .unwrap(),
         }
     }
 
