@@ -1,6 +1,6 @@
 [package]
 name = "nitro-tpm-pcr-compute"
-version = "1.0.0"
+version = "1.1.0"
 description = "Precompute NitroTPM Platform Configuration Register (PCR) values based on a Unified Kernel Image (UKI)"
 edition = "2024"
 authors = ["Marius Knaust <mknaust@amazon.com>"]
