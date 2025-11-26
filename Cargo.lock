@@ -1527,7 +1527,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-tpm-attest"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -1554,7 +1554,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-tpm-pcr-compute"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "authenticode",

@@ -1,6 +1,6 @@
 [package]
 name = "nitro-tpm-attest"
-version = "1.0.0"
+version = "1.0.1"
 description = "Retrieve a signed attestation document from the NitroTPM"
 edition = "2024"
 authors = ["Marius Knaust <mknaust@amazon.com>"]
