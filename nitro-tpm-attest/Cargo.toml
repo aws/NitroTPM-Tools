@@ -28,11 +28,7 @@ semver = "1.0"
 
 [dev-dependencies]
 aws-config = "1.5"
-# AWS SDK version constraints to maintain Rust 1.85 compatibility on AL2023
-aws-sdk-kms = "<=1.77"
-aws-sdk-sso = "~1.74"
-aws-sdk-ssooidc = "~1.75"
-aws-sdk-sts = "~1.76"
+aws-sdk-kms = "1.50"
 base64ct = { version = "1.7", features = ["alloc"] }
 openssl = "0.10"
 tokio = { version = "1", features = ["full"] }
