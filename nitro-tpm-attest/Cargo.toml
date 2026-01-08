@@ -32,7 +32,7 @@ aws-config = "1.5"
 aws-sdk-kms = "<=1.77"
 aws-sdk-sso = "~1.74"
 aws-sdk-ssooidc = "~1.75"
-aws-sdk-sts = "~1.76"
+aws-sdk-sts = "~1.91"
 base64ct = { version = "1.7", features = ["alloc"] }
 openssl = "0.10"
 tokio = { version = "1", features = ["full"] }
