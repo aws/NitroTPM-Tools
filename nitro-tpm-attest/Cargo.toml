@@ -31,7 +31,7 @@ aws-config = "1.5"
 # AWS SDK version constraints to maintain Rust 1.85 compatibility on AL2023
 aws-sdk-kms = "<=1.77"
 aws-sdk-sso = "~1.74"
-aws-sdk-ssooidc = "~1.75"
+aws-sdk-ssooidc = "~1.91"
 aws-sdk-sts = "~1.76"
 base64ct = { version = "1.7", features = ["alloc"] }
 openssl = "0.10"
