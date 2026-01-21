@@ -45,14 +45,15 @@ pub fn attestation_document(
         std::path::PathBuf::from(std::env::var_os("TPM_DEVICE").unwrap_or("/dev/tpm0".into()));
     let tpm_manager = std::cell::RefCell::new(TpmManager::new(tpm_device_path));
 
-    let endorsement_key = tss::EndorsementKey::new(&tpm_manager)?;
+    let (endorsement_key_tpm_handle, endorsement_key_public_encryption_key) =
+        tss::endorsement_key(&tpm_manager)?;
     let (message_buffer, message_buffer_name) =
-        tss::MessageBuffer::from_request(&tpm_manager, endorsement_key.tpm_handle(), &nsm_request)?;
+        tss::MessageBuffer::from_request(&tpm_manager, endorsement_key_tpm_handle, &nsm_request)?;
 
     raw::nsm_request(
         &tpm_manager,
-        endorsement_key.tpm_handle(),
-        &endorsement_key.public_encryption_key()?,
+        endorsement_key_tpm_handle,
+        &endorsement_key_public_encryption_key,
         message_buffer.index(),
         message_buffer.auth(),
         &message_buffer_name,
