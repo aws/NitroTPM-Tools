@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM rust:1.90-alpine3.22
+FROM --platform=$TARGETPLATFORM rust:1.93-alpine3.22
 
 RUN apk add --no-cache \
     build-base \
