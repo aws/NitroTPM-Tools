@@ -28,7 +28,7 @@ semver = "1.0"
 
 [dev-dependencies]
 aws-config = "1.8"
-aws-sdk-kms = "1.105"
+aws-sdk-kms = "1.106"
 base64ct = { version = "1.8", features = ["alloc"] }
 openssl = "0.10"
 tokio = { version = "1", features = ["full"] }
