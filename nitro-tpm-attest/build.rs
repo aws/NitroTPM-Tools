@@ -5,12 +5,13 @@ fn main() {
     // While tss-esapi 7.6 supports a minimum TSS version of 2.4.6, behavior between major version
     // differs significantly
     let tss_version_requirement =
-        semver::VersionReq::parse("4.0.0").expect("Failed to parse version requirement");
+        semver::VersionReq::parse(">=4.0.0-0, <5.0.0").expect("Failed to parse version requirement");
 
     let tss_version_string =
         std::env::var("DEP_TSS2_ESYS_VERSION").expect("DEP_TSS2_ESYS_VERSION not set");
-    let tss_version =
+    let mut tss_version =
         semver::Version::parse(&tss_version_string).expect("Failed to parse DEP_TSS2_ESYS_VERSION");
+    tss_version.pre = semver::Prerelease::EMPTY;
 
     assert!(
         tss_version_requirement.matches(&tss_version),
