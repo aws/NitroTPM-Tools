@@ -78,9 +78,11 @@ fn read_database(name: &str, path: Option<&std::path::Path>) -> anyhow::Result<V
     .map(Option::unwrap_or_default)
 }
 
-fn main() -> anyhow::Result<()> {
-    const ALGORITHM: &aws_lc_rs::digest::Algorithm = &aws_lc_rs::digest::SHA384;
+const ALGORITHM: &aws_lc_rs::digest::Algorithm = &aws_lc_rs::digest::SHA384;
+/// Has to match the name of [`ALGORITHM`]
+const ALGORITHM_NAME: &str = "SHA384";
 
+fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let arguments: Arguments = clap::Parser::parse();
@@ -102,7 +104,7 @@ fn main() -> anyhow::Result<()> {
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 
-    let mut build_info = BuildInfo::new(ALGORITHM);
+    let mut build_info = BuildInfo::new(ALGORITHM_NAME);
 
     build_info.add_measurement(4, pcr4(ALGORITHM, &arguments.secure_boot, &images)?);
     build_info.add_measurement(7, pcr7(ALGORITHM, &arguments.secure_boot, &images)?);
