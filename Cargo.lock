@@ -1689,6 +1689,7 @@ dependencies = [
  "clap",
  "digest 0.10.7",
  "env_logger",
+ "hex",
  "log",
  "object",
  "serde",

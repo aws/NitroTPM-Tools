@@ -411,3 +411,84 @@ fn pe_hash(
 
     Ok(hasher.finalize())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn no_secure_boot_arguments() -> SecureBootArguments {
+        SecureBootArguments {
+            platform_key: None,
+            key_exchange_key: None,
+            signature_database: None,
+            signature_denylist_database: None,
+        }
+    }
+
+    /// SHA384(SHA384(zeroes || SHA384("Calling EFI Application from Boot Option"))
+    /// || SHA384(00000000))
+    #[test]
+    fn pcr4_without_images() {
+        const EXPECTED: &str = "70bc457e087464760a8927d6312248dc117663410914ff8b\
+            1e42fd5dc91e16f5fe3f15ca64372d3e47af8b4c53b01df9";
+
+        let secure_boot = no_secure_boot_arguments();
+
+        let pcr4 = pcr4(
+            &aws_lc_rs::digest::SHA384,
+            &secure_boot,
+            &[] as &[object::read::pe::PeFile64],
+        )
+        .expect("pcr4");
+
+        assert_eq!(pcr4.as_ref(), hex::decode(EXPECTED).expect("hex"));
+    }
+
+    /// The UEFI_VARIABLE_DATA of SecureBoot = 00h and of an empty PK, KEK, db and dbx, then the
+    /// separator
+    #[test]
+    fn pcr7_without_secure_boot() {
+        const EXPECTED: &str = "98441c7f7625d10058c47683aec486ce311c633235eb5555\
+            93a7ee791121e3578ae72d04ecef661f272d59058b77af35";
+
+        let secure_boot = no_secure_boot_arguments();
+
+        let pcr7 = pcr7(
+            &aws_lc_rs::digest::SHA384,
+            &secure_boot,
+            &[] as &[object::read::pe::PeFile64],
+        )
+        .expect("pcr7");
+
+        assert_eq!(pcr7.as_ref(), hex::decode(EXPECTED).expect("hex"));
+    }
+
+    #[test]
+    fn variable_hash_matches_uefi_variable_data_layout() {
+        const EFI_GLOBAL_VARIABLE_GUID: uuid::Uuid =
+            uuid::uuid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
+        // SHA384 of the UEFI_VARIABLE_DATA of the name below with the data 01h
+        const EXPECTED: &str = "d015044410429512d6493a597e9e38fe3ead58e9723f049d\
+            bb1b76a4ff722b7fa0eb5d899bde2014cdf55336def6ae8b";
+
+        let name = "Secure\u{fc}Boot\u{1f600}";
+
+        assert_eq!(
+            (
+                name.len(),
+                name.chars().count(),
+                name.encode_utf16().count()
+            ),
+            (16, 12, 13)
+        );
+
+        let variable_hash = variable_hash(
+            &aws_lc_rs::digest::SHA384,
+            &EFI_GLOBAL_VARIABLE_GUID,
+            name,
+            b"\x01",
+        );
+
+        assert_eq!(variable_hash.as_ref(), hex::decode(EXPECTED).expect("hex"));
+    }
+}
