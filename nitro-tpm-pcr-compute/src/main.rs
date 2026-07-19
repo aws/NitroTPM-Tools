@@ -388,7 +388,9 @@ fn variable_hash(
         algorithm,
         &[
             uuid.to_bytes_le().as_slice(),
-            variable_name.len().to_le_bytes().as_slice(),
+            (variable_name.encode_utf16().count() as u64)
+                .to_le_bytes()
+                .as_slice(),
             (data.len() as u64).to_le_bytes().as_slice(),
             variable_name_utf16_bytes.as_slice(),
             data,
