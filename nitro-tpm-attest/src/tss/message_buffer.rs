@@ -22,7 +22,7 @@ pub(crate) enum Error {
 
 pub(crate) struct MessageBuffer<'a> {
     context: &'a mut tss_esapi::Context,
-    nv_index_tpm_handle: tss_esapi::handles::NvIndexTpmHandle,
+    nv_index_tpm_handle: Option<tss_esapi::handles::NvIndexTpmHandle>,
     nv_index_auth: tss_esapi::structures::Auth,
 }
 
@@ -73,7 +73,7 @@ impl<'a> MessageBuffer<'a> {
         // Constructed before the write, so a failure there undefines the index on drop
         let message_buffer = Self {
             context,
-            nv_index_tpm_handle,
+            nv_index_tpm_handle: Some(nv_index_tpm_handle),
             nv_index_auth,
         };
 
@@ -91,9 +91,20 @@ impl<'a> MessageBuffer<'a> {
         Ok(message_buffer)
     }
 
-    /// Reads the NSM response from the message buffer and drops the buffer afterwards
-    pub(crate) fn into_response(self) -> Result<nsm_api::Response, Error> {
-        let nv_index_tpm_handle = self.nv_index_tpm_handle;
+    /// Reads the NSM response from the message buffer and undefines the buffer afterwards
+    pub(crate) fn into_response(mut self) -> Result<nsm_api::Response, Error> {
+        let response = self.response();
+        let undefined = self.undefine();
+        // The response error is more telling than a failure to undefine
+        let response = response?;
+
+        undefined?;
+
+        Ok(response)
+    }
+
+    fn response(&mut self) -> Result<nsm_api::Response, Error> {
+        let nv_index_tpm_handle = self.index();
         let nv_index_handle = self
             .context
             .tr_from_tpm_public(nv_index_tpm_handle.into())?;
@@ -114,27 +125,34 @@ impl<'a> MessageBuffer<'a> {
 
     pub(crate) fn index(&self) -> tss_esapi::handles::NvIndexTpmHandle {
         self.nv_index_tpm_handle
+            .expect("NV index handle should be set until the index is undefined")
     }
 
     pub(crate) fn auth(&self) -> &tss_esapi::structures::Auth {
         &self.nv_index_auth
     }
+
+    /// Undefines the message buffer, unless it is undefined already
+    fn undefine(&mut self) -> Result<(), Error> {
+        let Some(nv_index_tpm_handle) = self.nv_index_tpm_handle.take() else {
+            return Ok(());
+        };
+
+        let nv_index_handle = self
+            .context
+            .tr_from_tpm_public(nv_index_tpm_handle.into())?;
+
+        Ok(self.context.nv_undefine_space(
+            tss_esapi::interface_types::resource_handles::Provision::Owner,
+            nv_index_handle.into(),
+        )?)
+    }
 }
 
 impl Drop for MessageBuffer<'_> {
     fn drop(&mut self) {
-        let nv_index_tpm_handle = self.nv_index_tpm_handle;
-
-        let nv_index_handle = self
-            .context
-            .tr_from_tpm_public(nv_index_tpm_handle.into())
-            .expect("Failed to construct TPM into TSS handle");
-
-        self.context
-            .nv_undefine_space(
-                tss_esapi::interface_types::resource_handles::Provision::Owner,
-                nv_index_handle.into(),
-            )
-            .expect("Failed to undefine message buffer");
+        // Only cleans up when into_response was not called, which means an error is already
+        // propagating
+        let _ = self.undefine();
     }
 }
