@@ -28,12 +28,18 @@ impl ContextExtension for tss_esapi::Context {
         first_handle: u32,
         last_handle: u32,
     ) -> tss_esapi::Result<Option<tss_esapi::handles::TpmHandle>> {
+        let Some(property_count) = last_handle
+            .checked_sub(first_handle)
+            .and_then(|span| span.checked_add(1))
+        else {
+            return Ok(None);
+        };
         let tpm_handles = self
             .execute_without_session(|context| {
                 context.get_capability(
                     tss_esapi::constants::CapabilityType::Handles,
                     first_handle,
-                    last_handle - first_handle + 1,
+                    property_count,
                 )
             })
             .and_then(|(capability_data, _)| match capability_data {
