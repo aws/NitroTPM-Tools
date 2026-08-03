@@ -7,6 +7,12 @@ use super::ContextExtension as _;
 use aws_nitro_enclaves_nsm_api::api as nsm_api;
 use nv_read_write::OpenNvIndex;
 
+/// Size of the message buffer
+///
+/// The plain attestation document (without any optional parameters) will be almost 5 KiB and the
+/// optional parameters are each limited to 1 KiB.
+pub(crate) const SIZE: usize = 8192;
+
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     #[error("could not find free NV index handle")]
@@ -68,10 +74,6 @@ impl<'a> MessageBuffer<'a> {
         context: &'a mut tss_esapi::Context,
         nsm_request: &nsm_api::Request,
     ) -> Result<Self, Error> {
-        // The plain attestation document (without any optional parameters) will be almost 5 KiB and
-        // the optional parameters are each limited to 1 KiB
-        const SIZE: usize = 8192;
-
         let mut nv_index_auth = vec![0u8; tss_esapi::structures::Auth::MAX_SIZE];
 
         aws_lc_rs::rand::fill(&mut nv_index_auth)?;

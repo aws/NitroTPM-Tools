@@ -56,6 +56,20 @@ pub fn attestation_document(
             source,
         })?;
 
+    let available = context
+        .get_tpm_property(tss_esapi::constants::property_tag::PropertyTag::NvIndexMax)
+        .map_err(Error::from_tss)?
+        .and_then(|nv_index_max| usize::try_from(nv_index_max).ok())
+        .ok_or_else(|| {
+            Error::from_tss(tss_esapi::Error::WrapperError(
+                tss_esapi::WrapperErrorKind::WrongValueFromTpm,
+            ))
+        })?;
+
+    if available < tss::message_buffer::SIZE {
+        return Err(Error::NvIndexSizeInsufficient { available });
+    }
+
     let password_session_handle =
         tss_esapi::interface_types::session_handles::AuthSession::Password;
     context.execute_with_session(Some(password_session_handle), |context| {
