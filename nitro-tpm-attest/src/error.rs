@@ -9,6 +9,17 @@ use crate::{nsm_api, raw, tss};
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// The TPM cannot hold an NV index as large as an attestation may need
+    #[error(
+        "an attestation document takes up to {} bytes, but the TPM holds at most {available} \
+         per NV index, so EC2 instance attestation is not supported on this TPM",
+        tss::message_buffer::SIZE
+    )]
+    #[non_exhaustive]
+    NvIndexSizeInsufficient {
+        /// Size in bytes of the largest NV index the TPM holds
+        available: usize,
+    },
     /// The NSM answered the attestation request with an invalid response
     #[error("invalid NSM response")]
     InvalidNsmResponse,
@@ -36,6 +47,14 @@ impl From<raw::Error> for Error {
 }
 
 impl Error {
+    /// Wraps a failure of the TSS into the opaque Other variant
+    ///
+    /// Unlike the other failures it has no From conversion, since the TSS error is public and a
+    /// conversion from it would name the TSS in this interface.
+    pub(crate) fn from_tss(error: tss_esapi::Error) -> Self {
+        Self::Other(OtherError(OtherErrorKind::Tss(error)))
+    }
+
     /// Whether the resource manager rejected the vendor command as unsupported, without the TPM
     /// seeing it
     pub(crate) fn is_unsupported_command(&self) -> bool {
@@ -95,6 +114,8 @@ pub struct OtherError(OtherErrorKind);
 /// The subsystem that failed
 #[derive(thiserror::Error, Debug)]
 enum OtherErrorKind {
+    #[error(transparent)]
+    Tss(tss_esapi::Error),
     #[error(transparent)]
     MessageBuffer(tss::message_buffer::Error),
     #[error(transparent)]
