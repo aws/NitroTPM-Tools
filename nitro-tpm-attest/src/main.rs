@@ -26,7 +26,12 @@ fn main() -> anyhow::Result<()> {
     let attestation_document =
         nitro_tpm_attest::attestation_document(user_data, nonce, public_key)?;
 
-    std::io::Write::write_all(&mut std::io::stdout(), &attestation_document)?;
+    let mut stdout = std::io::stdout();
+
+    std::io::Write::write_all(&mut stdout, &attestation_document)?;
+    // Without this flush, the rest of the document would only be written at exit, where a failed
+    // write is silently ignored
+    std::io::Write::flush(&mut stdout)?;
 
     Ok(())
 }
