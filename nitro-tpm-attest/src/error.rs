@@ -3,6 +3,7 @@
 
 //! The crate's error types
 
+use crate::tss::ResponseCodeExtension as _;
 use crate::{nsm_api, raw, tss};
 
 /// Failure of an attestation request
@@ -65,6 +66,36 @@ impl Error {
         Self::Other(OtherError(OtherErrorKind::Tss(error)))
     }
 
+    /// Whether the failure is one of the temporary ones a retry might fix
+    ///
+    /// These are a TPM device busy when opened, too little NV memory left for the index and a
+    /// command the TPM kept answering as retryable. An attestation holds an NV index for its
+    /// duration. Where the resource manager does not carry the vendor command, it also holds the
+    /// TPM device while that command runs. A TPM has little NV memory to spare and the device
+    /// admits a single user, so attestations running next to each other can run out of either. A
+    /// TPM can also leave a command unfinished for longer than 5 submissions last. Retrying is left
+    /// to the caller, which knows how long it can wait. This lets it tell such a failure apart from
+    /// any other.
+    #[must_use]
+    pub fn is_temporarily_unavailable(&self) -> bool {
+        // Only the TPM device admits a single user, so only there does busy mean another
+        // attestation holds it
+        if let Self::Open(OpenError {
+            transport: Transport::Device,
+            source: OpenErrorKind::Tpm(raw::Error::Io(error)),
+            ..
+        }) = self
+        {
+            return error.kind() == std::io::ErrorKind::ResourceBusy;
+        }
+
+        self.response_code().is_some_and(|response_code| {
+            response_code.kind()
+                == Some(tss_esapi::constants::response_code::Tss2ResponseCodeKind::NvSpace)
+                || response_code.is_retryable()
+        })
+    }
+
     /// Whether the resource manager rejected the vendor command as unsupported, without the TPM
     /// seeing it
     pub(crate) fn is_unsupported_command(&self) -> bool {
@@ -82,6 +113,23 @@ impl Error {
         };
 
         response_code.0 == RESOURCE_MANAGER_COMMAND_CODE
+    }
+
+    /// The response code of a failed TSS call or vendor command, or none for any other error
+    fn response_code(&self) -> Option<tss_esapi::constants::response_code::Tss2ResponseCode> {
+        let Self::Other(OtherError(kind)) = self else {
+            return None;
+        };
+        let (OtherErrorKind::Tss(tss_esapi::Error::Tss2Error(response_code))
+        | OtherErrorKind::MessageBuffer(tss::message_buffer::Error::Tss(
+            tss_esapi::Error::Tss2Error(response_code),
+        ))
+        | OtherErrorKind::NsmRequest(raw::Error::TpmErrorResponse(response_code))) = kind
+        else {
+            return None;
+        };
+
+        Some(*response_code)
     }
 }
 
@@ -107,19 +155,38 @@ impl std::fmt::Display for AttestationParameter {
     }
 }
 
-/// Failure of opening a TPM transport, naming the device it was opened on
+/// Failure of opening a TPM transport, naming which one and its path
 #[derive(thiserror::Error, Debug)]
-#[error("could not open the TPM device {device_path:?}")]
+#[error("could not open the TPM {transport} {device_path:?}")]
 pub struct OpenError {
+    pub(crate) transport: Transport,
     pub(crate) device_path: std::path::PathBuf,
     pub(crate) source: OpenErrorKind,
 }
 
 impl OpenError {
-    /// Path of the TPM device that could not be opened
+    /// Path of the TPM transport that could not be opened
     #[must_use]
     pub fn device_path(&self) -> &std::path::Path {
         &self.device_path
+    }
+}
+
+/// Which TPM transport failed to open, as only the device is busy while another holds it
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Transport {
+    /// The kernel resource manager, which admits many users at a time
+    ResourceManager,
+    /// The TPM device itself, which admits a single user
+    Device,
+}
+
+impl std::fmt::Display for Transport {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::ResourceManager => "resource manager",
+            Self::Device => "device",
+        })
     }
 }
 

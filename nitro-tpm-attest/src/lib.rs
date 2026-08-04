@@ -65,6 +65,7 @@ pub fn attestation_document(
             ))?)
         })
         .map_err(|source| OpenError {
+            transport: Transport::ResourceManager,
             device_path: tpm_resource_manager_device_path.clone(),
             source,
         })?;
@@ -88,8 +89,9 @@ pub fn attestation_document(
     context.execute_with_session(Some(password_session_handle), |context| {
         let message_buffer = tss::MessageBuffer::from_request(context, &nsm_request)?;
 
-        let send_nsm_request = |device_path| {
+        let send_nsm_request = |transport, device_path| {
             let mut tpm = raw::Tpm::new(device_path).map_err(|error| OpenError {
+                transport,
                 device_path: device_path.into(),
                 source: error.into(),
             })?;
@@ -97,12 +99,16 @@ pub fn attestation_document(
             Ok::<_, Error>(tpm.nsm_request(message_buffer.index(), message_buffer.auth())?)
         };
 
-        send_nsm_request(&tpm_resource_manager_device_path).or_else(|error| {
+        send_nsm_request(
+            Transport::ResourceManager,
+            &tpm_resource_manager_device_path,
+        )
+        .or_else(|error| {
             if !error.is_unsupported_command() {
                 return Err(error);
             }
 
-            send_nsm_request(&tpm_device_path)
+            send_nsm_request(Transport::Device, &tpm_device_path)
         })?;
 
         match message_buffer.into_response()? {
