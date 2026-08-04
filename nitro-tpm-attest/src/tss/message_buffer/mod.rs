@@ -7,14 +7,17 @@ use super::ContextExtension as _;
 use aws_nitro_enclaves_nsm_api::api as nsm_api;
 use nv_read_write::OpenNvIndex;
 
-/// Size of the message buffer
-///
-/// The plain attestation document (without any optional parameters) will be almost 5 KiB and the
-/// optional parameters are each limited to 1 KiB.
-pub(crate) const SIZE: usize = 8192;
+/// Rounded up size of a plain attestation document
+const BASE_SIZE: usize = 5 * 1024;
 
 /// Largest optional parameter the NSM accepts
 pub(crate) const PARAMETER_MAX_SIZE: usize = 1024;
+
+/// Largest message buffer any request can need, which a TPM is rejected against so that one unable
+/// to answer every request is reported up front
+///
+/// Comes to the 8192 bytes that are also the largest an NV index may be on a NitroTPM.
+pub(crate) const MAX_SIZE: usize = BASE_SIZE + 3 * PARAMETER_MAX_SIZE;
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
@@ -83,6 +86,7 @@ impl<'a> MessageBuffer<'a> {
 
         let nv_index_auth = tss_esapi::structures::Auth::try_from(nv_index_auth)?;
 
+        let data_size = size(nsm_request);
         // The largest chunk a read or write may carry: what the TPM reports, but no more than
         // MaxNvBuffer holds
         let buffer_size = context
@@ -96,14 +100,14 @@ impl<'a> MessageBuffer<'a> {
             .min(tss_esapi::structures::MaxNvBuffer::MAX_SIZE);
 
         let (nv_index_tpm_handle, nv_index_handle) =
-            reserve_nv_index(context, &nv_index_auth, SIZE)?;
+            reserve_nv_index(context, &nv_index_auth, data_size)?;
 
         // Constructed before the write, so a failure there undefines the index on drop
         let message_buffer = Self {
             context,
             nv_index: Some((
                 nv_index_tpm_handle,
-                OpenNvIndex::new(nv_index_handle, buffer_size, SIZE),
+                OpenNvIndex::new(nv_index_handle, buffer_size, data_size),
             )),
             nv_index_auth,
         };
@@ -179,6 +183,28 @@ impl Drop for MessageBuffer<'_> {
         // propagating
         let _ = self.undefine();
     }
+}
+
+/// Size a message buffer needs for the request it carries and the response overwriting it
+///
+/// The response is the larger of the two, and the NSM echoes every optional parameter into it, so
+/// each one is charged on top of the base. Sizing a request below the maximum is what admits more
+/// of them at a time, because the TPM has little NV memory left for indices.
+fn size(nsm_request: &nsm_api::Request) -> usize {
+    let nsm_api::Request::Attestation {
+        user_data,
+        nonce,
+        public_key,
+    } = nsm_request
+    else {
+        unreachable!("the crate sends only attestation requests");
+    };
+
+    [user_data, nonce, public_key]
+        .into_iter()
+        .flatten()
+        .map(|parameter| parameter.len())
+        .fold(BASE_SIZE, |size, parameter| size.saturating_add(parameter))
 }
 
 /// Reserves an NV index, retrying behind any handle another process takes first

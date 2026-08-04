@@ -13,7 +13,7 @@ pub enum Error {
     #[error(
         "an attestation document takes up to {} bytes, but the TPM holds at most {available} \
          per NV index, so EC2 instance attestation is not supported on this TPM",
-        tss::message_buffer::SIZE
+        tss::message_buffer::MAX_SIZE
     )]
     #[non_exhaustive]
     NvIndexSizeInsufficient {

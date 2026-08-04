@@ -79,7 +79,7 @@ pub fn attestation_document(
             ))
         })?;
 
-    if available < tss::message_buffer::SIZE {
+    if available < tss::message_buffer::MAX_SIZE {
         return Err(Error::NvIndexSizeInsufficient { available });
     }
 
