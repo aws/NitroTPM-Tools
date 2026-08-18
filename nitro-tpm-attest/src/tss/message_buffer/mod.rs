@@ -128,15 +128,19 @@ impl<'a> MessageBuffer<'a> {
             nv_index_auth,
         };
 
-        let open_nv_index = &message_buffer
-            .nv_index
-            .as_ref()
-            .expect("NV index should be set until it is undefined")
-            .1;
-        ciborium::into_writer(
-            nsm_request,
-            &mut open_nv_index.reader_writer(message_buffer.context),
-        )?;
+        {
+            let open_nv_index = &message_buffer
+                .nv_index
+                .as_ref()
+                .expect("NV index should be set until it is undefined")
+                .1;
+            let mut writer =
+                std::io::BufWriter::new(open_nv_index.reader_writer(message_buffer.context));
+
+            ciborium::into_writer(nsm_request, &mut writer)?;
+            // BufWriter's Drop swallows errors, so its buffer is flushed explicitly
+            std::io::Write::flush(&mut writer)?;
+        }
 
         Ok(message_buffer)
     }
@@ -160,9 +164,9 @@ impl<'a> MessageBuffer<'a> {
             .expect("NV index should be set until it is undefined")
             .1;
 
-        Ok(ciborium::from_reader(
+        Ok(ciborium::from_reader(std::io::BufReader::new(
             open_nv_index.reader_writer(self.context),
-        )?)
+        ))?)
     }
 
     pub(crate) fn index(&self) -> tss_esapi::handles::NvIndexTpmHandle {
