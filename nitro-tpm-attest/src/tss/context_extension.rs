@@ -34,24 +34,33 @@ impl ContextExtension for tss_esapi::Context {
         else {
             return Ok(None);
         };
-        let tpm_handles = self
-            .execute_without_session(|context| {
+        let mut tpm_handles = std::collections::HashSet::new();
+        let mut next_start = Some(first_handle);
+
+        while let Some(start) = next_start {
+            let (capability_data, more_data) = self.execute_without_session(|context| {
                 context.get_capability(
                     tss_esapi::constants::CapabilityType::Handles,
-                    first_handle,
+                    start,
                     property_count,
                 )
-            })
-            .and_then(|(capability_data, _)| match capability_data {
-                tss_esapi::structures::CapabilityData::Handles(tpm_handles) => Ok(tpm_handles),
-                _ => Err(tss_esapi::Error::WrapperError(
+            })?;
+            let tss_esapi::structures::CapabilityData::Handles(page) = capability_data else {
+                return Err(tss_esapi::Error::WrapperError(
                     tss_esapi::WrapperErrorKind::WrongValueFromTpm,
-                )),
-            })?
-            .into_inner()
-            .into_iter()
-            .map(u32::from)
-            .collect::<std::collections::HashSet<_>>();
+                ));
+            };
+            let page = page.into_inner();
+
+            next_start = page
+                .last()
+                .copied()
+                .map(u32::from)
+                .filter(|_| more_data)
+                .and_then(|tpm_handle| tpm_handle.checked_add(1))
+                .filter(|&next| next <= last_handle);
+            tpm_handles.extend(page.into_iter().map(u32::from));
+        }
 
         (first_handle..=last_handle)
             .find(|tpm_handle| !tpm_handles.contains(tpm_handle))
