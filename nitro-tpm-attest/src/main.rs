@@ -21,8 +21,12 @@ struct Arguments {
 enum Error {
     #[error(transparent)]
     Attestation(#[from] nitro_tpm_attest::Error),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
+    /// `context` completes "could not …", e.g. "read /path" or "write the attestation document"
+    #[error("could not {context}")]
+    Io {
+        context: String,
+        source: std::io::Error,
+    },
 }
 
 impl Error {
@@ -58,19 +62,36 @@ fn main() -> std::process::ExitCode {
 fn run() -> Result<(), Error> {
     let arguments: Arguments = clap::Parser::parse();
 
-    let user_data = arguments.user_data.map(std::fs::read).transpose()?;
-    let nonce = arguments.nonce.map(std::fs::read).transpose()?;
-    let public_key = arguments.public_key.map(std::fs::read).transpose()?;
+    let user_data = read_argument(arguments.user_data)?;
+    let nonce = read_argument(arguments.nonce)?;
+    let public_key = read_argument(arguments.public_key)?;
 
     let attestation_document =
         nitro_tpm_attest::attestation_document(user_data, nonce, public_key)?;
 
     let mut stdout = std::io::stdout();
 
-    std::io::Write::write_all(&mut stdout, &attestation_document)?;
+    std::io::Write::write_all(&mut stdout, &attestation_document).map_err(|source| Error::Io {
+        context: "write the attestation document".into(),
+        source,
+    })?;
     // Without this flush, the rest of the document would only be written at exit, where a failed
     // write is silently ignored
-    std::io::Write::flush(&mut stdout)?;
+    std::io::Write::flush(&mut stdout).map_err(|source| Error::Io {
+        context: "flush standard output".into(),
+        source,
+    })?;
 
     Ok(())
+}
+
+/// Read an optional file argument, naming the path in any failure
+fn read_argument(path: Option<std::path::PathBuf>) -> Result<Option<Vec<u8>>, Error> {
+    path.map(|path| {
+        std::fs::read(&path).map_err(|source| Error::Io {
+            context: format!("read {}", path.display()),
+            source,
+        })
+    })
+    .transpose()
 }
