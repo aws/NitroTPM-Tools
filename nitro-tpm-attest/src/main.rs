@@ -4,13 +4,13 @@
 /// Request a TPM attestation document from NitroTPM
 #[derive(clap::Parser)]
 struct Arguments {
-    /// Path of user data to optional include
+    /// Path of user data to optionally include
     #[arg(short, long)]
     user_data: Option<std::path::PathBuf>,
-    /// Path of a nonce to optional include
+    /// Path of a nonce to optionally include
     #[arg(short, long)]
     nonce: Option<std::path::PathBuf>,
-    /// Path of a public key to optional include
+    /// Path of a public key to optionally include
     #[arg(short, long)]
     public_key: Option<std::path::PathBuf>,
 }

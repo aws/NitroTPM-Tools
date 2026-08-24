@@ -10,7 +10,7 @@ This package includes both a command-line interface (CLI) and a Rust crate that 
 When you request the attestation document, you can specify an optional public key, user data, and nonce. These will be included in the attestation document returned by the NitroTPM.
 The public key can be used by AWS KMS or an external service to encrypt response data before it is returned. This ensures that only the intended recipient, which has possession of the private key, can decrypt the data.
 The user data can be used to deliver any additional signed data to the external service.
-The nonce can be used to set up challenge-repsonse authentication to help avoid impersonation attacks.
+The nonce can be used to set up challenge-response authentication to help avoid impersonation attacks.
 
 To request an attestation document with the optional public key, user data, and nonce:
 
