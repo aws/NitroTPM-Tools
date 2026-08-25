@@ -43,15 +43,9 @@ pub fn attestation_document(
         std::path::PathBuf::from(std::env::var_os("TPM_DEVICE").unwrap_or("/dev/tpm0".into()));
     let tpm_manager = std::cell::RefCell::new(TpmManager::new(tpm_device_path));
 
-    let (message_buffer, message_buffer_name) =
-        tss::MessageBuffer::from_request(&tpm_manager, &nsm_request)?;
+    let message_buffer = tss::MessageBuffer::from_request(&tpm_manager, &nsm_request)?;
 
-    raw::nsm_request(
-        &tpm_manager,
-        message_buffer.index(),
-        message_buffer.auth(),
-        &message_buffer_name,
-    )?;
+    raw::nsm_request(&tpm_manager, message_buffer.index(), message_buffer.auth())?;
 
     match message_buffer.into_response()? {
         nsm_api::Response::Attestation { document } => Ok(document),

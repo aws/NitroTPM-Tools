@@ -29,12 +29,11 @@ pub(crate) struct MessageBuffer<'a> {
 }
 
 impl<'a> MessageBuffer<'a> {
-    /// Defines an input/output message buffer and returns it's unique name (after the the NSM
-    /// request was written to it) alongside the buffer itself
+    /// Defines an input/output message buffer
     pub(crate) fn from_request(
         tpm_manager: &'a std::cell::RefCell<crate::TpmManager>,
         nsm_request: &nsm_api::Request,
-    ) -> Result<(Self, tss_esapi::structures::Name), Error> {
+    ) -> Result<Self, Error> {
         // The plain attestation document (without any optional parameters) will be almost 5 KiB and
         // the optional parameters are each limited to 1 KiB
         const SIZE: usize = 8192;
@@ -69,7 +68,7 @@ impl<'a> MessageBuffer<'a> {
             .with_data_area_size(SIZE)
             .build()?;
 
-        let name = context.execute_with_nullauth_session(|context| {
+        context.execute_with_nullauth_session(|context| {
             let nv_index_handle = context.nv_define_space(
                 tss_esapi::interface_types::resource_handles::Provision::Owner,
                 Some(nv_index_auth.clone()),
@@ -87,22 +86,14 @@ impl<'a> MessageBuffer<'a> {
                 .open(context)?,
             )?;
 
-            let nv_index_handle = context.tr_from_tpm_public(nv_index_tpm_handle.into())?;
-            let name = context
-                .nv_read_public(nv_index_handle.into())
-                .map(|(_, name)| name)?;
-
-            Ok::<_, Error>(name)
+            Ok::<_, Error>(())
         })?;
 
-        Ok((
-            Self {
-                tpm_manager,
-                nv_index_tpm_handle,
-                nv_index_auth,
-            },
-            name,
-        ))
+        Ok(Self {
+            tpm_manager,
+            nv_index_tpm_handle,
+            nv_index_auth,
+        })
     }
 
     /// Reads the NSM response from the message buffer and drops the buffer afterwards
