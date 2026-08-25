@@ -62,12 +62,11 @@ fn main() -> std::process::ExitCode {
 fn run() -> Result<(), Error> {
     let arguments: Arguments = clap::Parser::parse();
 
-    let user_data = read_argument(arguments.user_data)?;
-    let nonce = read_argument(arguments.nonce)?;
-    let public_key = read_argument(arguments.public_key)?;
-
-    let attestation_document =
-        nitro_tpm_attest::attestation_document(user_data, nonce, public_key)?;
+    let attestation_document = nitro_tpm_attest::AttestationRequest::new()
+        .user_data(read_argument(arguments.user_data)?)?
+        .nonce(read_argument(arguments.nonce)?)?
+        .public_key(read_argument(arguments.public_key)?)?
+        .issue()?;
 
     let mut stdout = std::io::stdout();
 
