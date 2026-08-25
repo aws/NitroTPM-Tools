@@ -1,8 +1,11 @@
 // Copyright 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+mod nv_read_write;
+
 use super::ContextExtension as _;
 use aws_nitro_enclaves_nsm_api::api as nsm_api;
+use nv_read_write::OpenNvIndex;
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
@@ -50,7 +53,12 @@ impl From<ciborium::de::Error<std::io::Error>> for Error {
 
 pub(crate) struct MessageBuffer<'a> {
     context: &'a mut tss_esapi::Context,
-    nv_index_tpm_handle: Option<tss_esapi::handles::NvIndexTpmHandle>,
+    nv_index: Option<(
+        // the raw handle the vendor command needs
+        tss_esapi::handles::NvIndexTpmHandle,
+        // the open index that reads and writes through the resolved handle it holds
+        OpenNvIndex,
+    )>,
     nv_index_auth: tss_esapi::structures::Auth,
 }
 
@@ -92,6 +100,18 @@ impl<'a> MessageBuffer<'a> {
             .with_data_area_size(SIZE)
             .build()?;
 
+        // The largest chunk a read or write may carry: what the TPM reports, but no more than
+        // MaxNvBuffer holds
+        let buffer_size = context
+            .get_tpm_property(tss_esapi::constants::property_tag::PropertyTag::NvBufferMax)?
+            .map(usize::try_from)
+            .transpose()
+            .map_err(|_| {
+                tss_esapi::Error::WrapperError(tss_esapi::WrapperErrorKind::WrongValueFromTpm)
+            })?
+            .unwrap_or(tss_esapi::structures::MaxNvBuffer::MAX_SIZE)
+            .min(tss_esapi::structures::MaxNvBuffer::MAX_SIZE);
+
         let nv_index_handle = context.nv_define_space(
             tss_esapi::interface_types::resource_handles::Provision::Owner,
             Some(nv_index_auth.clone()),
@@ -101,19 +121,21 @@ impl<'a> MessageBuffer<'a> {
         // Constructed before the write, so a failure there undefines the index on drop
         let message_buffer = Self {
             context,
-            nv_index_tpm_handle: Some(nv_index_tpm_handle),
+            nv_index: Some((
+                nv_index_tpm_handle,
+                OpenNvIndex::new(nv_index_handle, buffer_size, SIZE),
+            )),
             nv_index_auth,
         };
 
+        let open_nv_index = &message_buffer
+            .nv_index
+            .as_ref()
+            .expect("NV index should be set until it is undefined")
+            .1;
         ciborium::into_writer(
             nsm_request,
-            &mut tss_esapi::abstraction::nv::NvOpenOptions::ExistingIndex {
-                nv_index_handle: nv_index_tpm_handle,
-                auth_handle: tss_esapi::interface_types::resource_handles::NvAuth::NvIndex(
-                    nv_index_handle,
-                ),
-            }
-            .open(message_buffer.context)?,
+            &mut open_nv_index.reader_writer(message_buffer.context),
         )?;
 
         Ok(message_buffer)
@@ -132,28 +154,22 @@ impl<'a> MessageBuffer<'a> {
     }
 
     fn response(&mut self) -> Result<nsm_api::Response, Error> {
-        let nv_index_tpm_handle = self.index();
-        let nv_index_handle = self
-            .context
-            .tr_from_tpm_public(nv_index_tpm_handle.into())?;
-
-        self.context
-            .tr_set_auth(nv_index_handle, self.nv_index_auth.clone())?;
+        let open_nv_index = &self
+            .nv_index
+            .as_ref()
+            .expect("NV index should be set until it is undefined")
+            .1;
 
         Ok(ciborium::from_reader(
-            tss_esapi::abstraction::nv::NvOpenOptions::ExistingIndex {
-                nv_index_handle: nv_index_tpm_handle,
-                auth_handle: tss_esapi::interface_types::resource_handles::NvAuth::NvIndex(
-                    nv_index_handle.into(),
-                ),
-            }
-            .open(self.context)?,
+            open_nv_index.reader_writer(self.context),
         )?)
     }
 
     pub(crate) fn index(&self) -> tss_esapi::handles::NvIndexTpmHandle {
-        self.nv_index_tpm_handle
-            .expect("NV index handle should be set until the index is undefined")
+        self.nv_index
+            .as_ref()
+            .expect("NV index should be set until it is undefined")
+            .0
     }
 
     pub(crate) fn auth(&self) -> &tss_esapi::structures::Auth {
@@ -162,17 +178,13 @@ impl<'a> MessageBuffer<'a> {
 
     /// Undefines the message buffer, unless it is undefined already
     fn undefine(&mut self) -> Result<(), Error> {
-        let Some(nv_index_tpm_handle) = self.nv_index_tpm_handle.take() else {
+        let Some((_, open_nv_index)) = self.nv_index.take() else {
             return Ok(());
         };
 
-        let nv_index_handle = self
-            .context
-            .tr_from_tpm_public(nv_index_tpm_handle.into())?;
-
         Ok(self.context.nv_undefine_space(
             tss_esapi::interface_types::resource_handles::Provision::Owner,
-            nv_index_handle.into(),
+            open_nv_index.into_nv_index_handle(),
         )?)
     }
 }
