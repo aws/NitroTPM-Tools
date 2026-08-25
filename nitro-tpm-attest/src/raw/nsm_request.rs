@@ -15,14 +15,11 @@ pub enum Error {
 
 pub(crate) fn nsm_request(
     tpm_manager: &std::cell::RefCell<crate::TpmManager>,
-    salt_key_handle: tss_esapi::handles::TpmHandle,
-    salt_public_encryption_key: &aws_lc_rs::rsa::PublicEncryptingKey,
     message_buffer_index: tss_esapi::handles::NvIndexTpmHandle,
     message_buffer_auth: &tss_esapi::structures::Auth,
     message_buffer_name: &tss_esapi::structures::Name,
 ) -> Result<(), Error> {
-    let (auth_session, nonce_tpm) =
-        super::AuthSession::new(tpm_manager, salt_key_handle, salt_public_encryption_key)?;
+    let (auth_session, nonce_tpm) = super::AuthSession::new(tpm_manager)?;
     let cp_hash = cp_hash(message_buffer_name)?;
     let auth_area = auth_session.auth_area(message_buffer_auth, &nonce_tpm, &cp_hash)?;
 
