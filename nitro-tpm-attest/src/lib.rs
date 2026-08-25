@@ -56,28 +56,32 @@ pub fn attestation_document(
             source,
         })?;
 
-    let message_buffer = tss::MessageBuffer::from_request(&mut context, &nsm_request)?;
+    let password_session_handle =
+        tss_esapi::interface_types::session_handles::AuthSession::Password;
+    context.execute_with_session(Some(password_session_handle), |context| {
+        let message_buffer = tss::MessageBuffer::from_request(context, &nsm_request)?;
 
-    let send_nsm_request = |device_path| {
-        let mut tpm = raw::Tpm::new(device_path).map_err(|error| OpenError {
-            device_path: device_path.into(),
-            source: error.into(),
+        let send_nsm_request = |device_path| {
+            let mut tpm = raw::Tpm::new(device_path).map_err(|error| OpenError {
+                device_path: device_path.into(),
+                source: error.into(),
+            })?;
+
+            Ok::<_, Error>(tpm.nsm_request(message_buffer.index(), message_buffer.auth())?)
+        };
+
+        send_nsm_request(&tpm_resource_manager_device_path).or_else(|error| {
+            if !error.is_unsupported_command() {
+                return Err(error);
+            }
+
+            send_nsm_request(&tpm_device_path)
         })?;
 
-        Ok::<_, Error>(tpm.nsm_request(message_buffer.index(), message_buffer.auth())?)
-    };
-
-    send_nsm_request(&tpm_resource_manager_device_path).or_else(|error| {
-        if !error.is_unsupported_command() {
-            return Err(error);
+        match message_buffer.into_response()? {
+            nsm_api::Response::Attestation { document } => Ok(document),
+            nsm_api::Response::Error(error_code) => Err(Error::NsmErrorResponse(error_code)),
+            _ => Err(Error::InvalidNsmResponse),
         }
-
-        send_nsm_request(&tpm_device_path)
-    })?;
-
-    match message_buffer.into_response()? {
-        nsm_api::Response::Attestation { document } => Ok(document),
-        nsm_api::Response::Error(error_code) => Err(Error::NsmErrorResponse(error_code)),
-        _ => Err(Error::InvalidNsmResponse),
-    }
+    })
 }

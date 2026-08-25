@@ -10,14 +10,6 @@ pub(super) trait ContextExtension {
         first_handle: u32,
         last_handle: u32,
     ) -> tss_esapi::Result<Option<tss_esapi::handles::TpmHandle>>;
-
-    /// Execute a function with a password authorization session
-    fn execute_with_password_auth_session<F, T, E>(
-        &mut self,
-        function: F,
-    ) -> std::result::Result<T, E>
-    where
-        F: FnOnce(&mut tss_esapi::Context) -> std::result::Result<T, E>;
 }
 
 impl ContextExtension for tss_esapi::Context {
@@ -64,18 +56,5 @@ impl ContextExtension for tss_esapi::Context {
             .find(|tpm_handle| !tpm_handles.contains(tpm_handle))
             .map(tss_esapi::handles::TpmHandle::try_from)
             .transpose()
-    }
-
-    fn execute_with_password_auth_session<F, T, E>(
-        &mut self,
-        function: F,
-    ) -> std::result::Result<T, E>
-    where
-        F: FnOnce(&mut tss_esapi::Context) -> std::result::Result<T, E>,
-    {
-        self.execute_with_session(
-            Some(tss_esapi::interface_types::session_handles::AuthSession::Password),
-            function,
-        )
     }
 }
