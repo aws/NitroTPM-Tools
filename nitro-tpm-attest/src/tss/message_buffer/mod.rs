@@ -78,28 +78,6 @@ impl<'a> MessageBuffer<'a> {
 
         let nv_index_auth = tss_esapi::structures::Auth::try_from(nv_index_auth)?;
 
-        let nv_index_tpm_handle = tss_esapi::handles::NvIndexTpmHandle::try_from(
-            context
-                .find_free_handle(
-                    tss_esapi::constants::tss::TPM2_NV_INDEX_FIRST,
-                    tss_esapi::constants::tss::TPM2_NV_INDEX_LAST,
-                )?
-                .ok_or(Error::NvIndexHandleCapacity)?,
-        )?;
-
-        let nv_index_attributes = tss_esapi::attributes::nv_index::NvIndexAttributes::builder()
-            .with_auth_read(true)
-            .with_auth_write(true)
-            .build()?;
-        let nv_public = tss_esapi::structures::NvPublic::builder()
-            .with_nv_index(nv_index_tpm_handle)
-            .with_index_name_algorithm(
-                tss_esapi::interface_types::algorithm::HashingAlgorithm::Sha512,
-            )
-            .with_index_attributes(nv_index_attributes)
-            .with_data_area_size(SIZE)
-            .build()?;
-
         // The largest chunk a read or write may carry: what the TPM reports, but no more than
         // MaxNvBuffer holds
         let buffer_size = context
@@ -112,11 +90,8 @@ impl<'a> MessageBuffer<'a> {
             .unwrap_or(tss_esapi::structures::MaxNvBuffer::MAX_SIZE)
             .min(tss_esapi::structures::MaxNvBuffer::MAX_SIZE);
 
-        let nv_index_handle = context.nv_define_space(
-            tss_esapi::interface_types::resource_handles::Provision::Owner,
-            Some(nv_index_auth.clone()),
-            nv_public,
-        )?;
+        let (nv_index_tpm_handle, nv_index_handle) =
+            reserve_nv_index(context, &nv_index_auth, SIZE)?;
 
         // Constructed before the write, so a failure there undefines the index on drop
         let message_buffer = Self {
@@ -198,5 +173,77 @@ impl Drop for MessageBuffer<'_> {
         // Only cleans up when into_response was not called, which means an error is already
         // propagating
         let _ = self.undefine();
+    }
+}
+
+/// Reserves an NV index, retrying behind any handle another process takes first
+fn reserve_nv_index(
+    context: &mut tss_esapi::Context,
+    nv_index_auth: &tss_esapi::structures::Auth,
+    size: usize,
+) -> Result<
+    (
+        tss_esapi::handles::NvIndexTpmHandle,
+        tss_esapi::handles::NvIndexHandle,
+    ),
+    Error,
+> {
+    let mut start_handle = tss_esapi::constants::tss::TPM2_NV_INDEX_FIRST;
+
+    loop {
+        let nv_index_tpm_handle = tss_esapi::handles::NvIndexTpmHandle::try_from(
+            context
+                .find_free_handle(start_handle, tss_esapi::constants::tss::TPM2_NV_INDEX_LAST)?
+                .ok_or(Error::NvIndexHandleCapacity)?,
+        )?;
+
+        if let Some(nv_index_handle) =
+            define_nv_index(context, nv_index_tpm_handle, nv_index_auth, size)?
+        {
+            return Ok((nv_index_tpm_handle, nv_index_handle));
+        }
+
+        start_handle = u32::from(nv_index_tpm_handle)
+            .checked_add(1)
+            .ok_or(Error::NvIndexHandleCapacity)?;
+    }
+}
+
+/// Defines the message buffer's NV index at the given handle and returns the handle it resolved to,
+/// or None when another process has already taken the handle
+///
+/// Reserving the handle is the definition itself, so that a handle another process defined first is
+/// never mistaken for one of ours.
+fn define_nv_index(
+    context: &mut tss_esapi::Context,
+    nv_index_tpm_handle: tss_esapi::handles::NvIndexTpmHandle,
+    nv_index_auth: &tss_esapi::structures::Auth,
+    size: usize,
+) -> Result<Option<tss_esapi::handles::NvIndexHandle>, Error> {
+    let nv_public = tss_esapi::structures::NvPublic::builder()
+        .with_nv_index(nv_index_tpm_handle)
+        .with_index_name_algorithm(tss_esapi::interface_types::algorithm::HashingAlgorithm::Sha512)
+        .with_index_attributes(
+            tss_esapi::attributes::nv_index::NvIndexAttributes::builder()
+                .with_auth_read(true)
+                .with_auth_write(true)
+                .build()?,
+        )
+        .with_data_area_size(size)
+        .build()?;
+
+    match context.nv_define_space(
+        tss_esapi::interface_types::resource_handles::Provision::Owner,
+        Some(nv_index_auth.clone()),
+        nv_public,
+    ) {
+        Ok(nv_index_handle) => Ok(Some(nv_index_handle)),
+        Err(tss_esapi::Error::Tss2Error(response_code))
+            if response_code.kind()
+                == Some(tss_esapi::constants::response_code::Tss2ResponseCodeKind::NvDefined) =>
+        {
+            Ok(None)
+        }
+        Err(error) => Err(error.into()),
     }
 }
