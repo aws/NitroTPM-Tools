@@ -31,6 +31,9 @@ pub enum Error {
         /// The parameter that is too large
         parameter: AttestationParameter,
     },
+    /// The owner authorization value is longer than the TPM accepts
+    #[error("the owner authorization value is longer than the TPM accepts")]
+    OwnerAuthTooLong,
     /// The NSM answered the attestation request with an invalid response
     #[error("invalid NSM response")]
     InvalidNsmResponse,
