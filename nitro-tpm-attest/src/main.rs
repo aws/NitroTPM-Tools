@@ -14,6 +14,9 @@ struct Arguments {
     /// Path of a public key to optionally include
     #[arg(short, long)]
     public_key: Option<std::path::PathBuf>,
+    /// Path of the owner hierarchy authorization value, needed only when one is set on the TPM
+    #[arg(short, long)]
+    owner_auth: Option<std::path::PathBuf>,
 }
 
 /// Failure of the binary, which is either the attestation itself or an I/O operation around it
@@ -66,6 +69,7 @@ fn run() -> Result<(), Error> {
         .user_data(read_argument(arguments.user_data)?)?
         .nonce(read_argument(arguments.nonce)?)?
         .public_key(read_argument(arguments.public_key)?)?
+        .owner_auth(read_argument(arguments.owner_auth)?)?
         .issue()?;
 
     let mut stdout = std::io::stdout();
