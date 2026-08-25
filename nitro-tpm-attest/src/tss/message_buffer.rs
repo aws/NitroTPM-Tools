@@ -68,7 +68,7 @@ impl<'a> MessageBuffer<'a> {
             .with_data_area_size(SIZE)
             .build()?;
 
-        context.execute_with_nullauth_session(|context| {
+        context.execute_with_password_auth_session(|context| {
             let nv_index_handle = context.nv_define_space(
                 tss_esapi::interface_types::resource_handles::Provision::Owner,
                 Some(nv_index_auth.clone()),
@@ -101,7 +101,7 @@ impl<'a> MessageBuffer<'a> {
         self.tpm_manager
             .borrow_mut()
             .tss()?
-            .execute_with_nullauth_session(|context| {
+            .execute_with_password_auth_session(|context| {
                 let nv_index_handle =
                     context.tr_from_tpm_public(self.nv_index_tpm_handle.into())?;
 
@@ -134,7 +134,7 @@ impl Drop for MessageBuffer<'_> {
             .borrow_mut()
             .tss()
             .expect("Failed to get context")
-            .execute_with_nullauth_session(|context| {
+            .execute_with_password_auth_session(|context| {
                 let nv_index_handle = context
                     .tr_from_tpm_public(self.nv_index_tpm_handle.into())
                     .expect("Failed to construct TPM into TSS handle");
