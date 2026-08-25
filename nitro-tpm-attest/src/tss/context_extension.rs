@@ -10,16 +10,6 @@ pub(super) trait ContextExtension {
         first_handle: u32,
         last_handle: u32,
     ) -> tss_esapi::Result<Option<tss_esapi::handles::TpmHandle>>;
-
-    /// Execute a function with a salted authorization session
-    fn execute_with_salted_auth_session<F, T, E>(
-        &mut self,
-        salt_key_tpm_handle: tss_esapi::handles::TpmHandle,
-        function: F,
-    ) -> std::result::Result<T, E>
-    where
-        F: FnOnce(&mut tss_esapi::Context) -> std::result::Result<T, E>,
-        E: From<tss_esapi::Error>;
 }
 
 impl ContextExtension for tss_esapi::Context {
@@ -66,47 +56,5 @@ impl ContextExtension for tss_esapi::Context {
             .find(|tpm_handle| !tpm_handles.contains(tpm_handle))
             .map(tss_esapi::handles::TpmHandle::try_from)
             .transpose()
-    }
-
-    fn execute_with_salted_auth_session<F, T, E>(
-        &mut self,
-        salt_key_tpm_handle: tss_esapi::handles::TpmHandle,
-        function: F,
-    ) -> std::result::Result<T, E>
-    where
-        F: FnOnce(&mut tss_esapi::Context) -> std::result::Result<T, E>,
-        E: From<tss_esapi::Error>,
-    {
-        let salt_key_handle = self.tr_from_tpm_public(salt_key_tpm_handle)?.into();
-        let auth_session = self
-            .start_auth_session(
-                Some(salt_key_handle),
-                None,
-                None,
-                tss_esapi::constants::SessionType::Hmac,
-                tss_esapi::structures::SymmetricDefinition::AES_128_CFB,
-                tss_esapi::interface_types::algorithm::HashingAlgorithm::Sha512,
-            )?
-            .ok_or(tss_esapi::Error::WrapperError(
-                tss_esapi::WrapperErrorKind::WrongValueFromTpm,
-            ))?;
-        let (session_attributes, session_attributes_mask) =
-            tss_esapi::attributes::SessionAttributesBuilder::new()
-                .with_decrypt(true)
-                .with_encrypt(true)
-                .build();
-
-        self.tr_sess_set_attributes(auth_session, session_attributes, session_attributes_mask)
-            .or_else(|error| {
-                self.flush_context(tss_esapi::handles::SessionHandle::from(auth_session).into())?;
-
-                Err(error)
-            })?;
-
-        let result = self.execute_with_session(Some(auth_session), function);
-
-        self.flush_context(tss_esapi::handles::SessionHandle::from(auth_session).into())?;
-
-        result
     }
 }
