@@ -13,6 +13,9 @@ use nv_read_write::OpenNvIndex;
 /// optional parameters are each limited to 1 KiB.
 pub(crate) const SIZE: usize = 8192;
 
+/// Largest optional parameter the NSM accepts
+pub(crate) const PARAMETER_MAX_SIZE: usize = 1024;
+
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     #[error("could not find free NV index handle")]
