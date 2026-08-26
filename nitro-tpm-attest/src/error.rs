@@ -20,6 +20,16 @@ pub enum Error {
         /// Size in bytes of the largest NV index the TPM holds
         available: usize,
     },
+    /// An optional attestation parameter is larger than the NSM accepts
+    #[error(
+        "the {parameter} is larger than the {} bytes the NSM accepts",
+        tss::message_buffer::PARAMETER_MAX_SIZE
+    )]
+    #[non_exhaustive]
+    ParameterTooLarge {
+        /// The parameter that is too large
+        parameter: AttestationParameter,
+    },
     /// The NSM answered the attestation request with an invalid response
     #[error("invalid NSM response")]
     InvalidNsmResponse,
@@ -72,6 +82,28 @@ impl Error {
         };
 
         response_code.0 == RESOURCE_MANAGER_COMMAND_CODE
+    }
+}
+
+/// An optional parameter of an attestation request, as named by [`Error::ParameterTooLarge`]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum AttestationParameter {
+    /// The user data
+    UserData,
+    /// The nonce
+    Nonce,
+    /// The public key
+    PublicKey,
+}
+
+impl std::fmt::Display for AttestationParameter {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::UserData => "user data",
+            Self::Nonce => "nonce",
+            Self::PublicKey => "public key",
+        })
     }
 }
 

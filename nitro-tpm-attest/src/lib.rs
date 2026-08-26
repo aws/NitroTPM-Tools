@@ -27,6 +27,19 @@ pub fn attestation_document(
     nonce: Option<Vec<u8>>,
     public_key: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, Error> {
+    for (value, parameter) in [
+        (&user_data, AttestationParameter::UserData),
+        (&nonce, AttestationParameter::Nonce),
+        (&public_key, AttestationParameter::PublicKey),
+    ] {
+        if value
+            .as_ref()
+            .is_some_and(|value| value.len() > tss::message_buffer::PARAMETER_MAX_SIZE)
+        {
+            return Err(Error::ParameterTooLarge { parameter });
+        }
+    }
+
     let nsm_request = nsm_api::Request::Attestation {
         user_data: user_data.map(Into::into),
         nonce: nonce.map(Into::into),
