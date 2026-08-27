@@ -5,7 +5,7 @@ use super::ContextExtension as _;
 use aws_nitro_enclaves_nsm_api::api as nsm_api;
 
 #[derive(thiserror::Error, Debug)]
-pub enum Error {
+pub(crate) enum Error {
     #[error("could not find free NV index handle")]
     NvIndexHandleCapacity,
     #[error(transparent)]
