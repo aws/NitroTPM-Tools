@@ -10,22 +10,11 @@ pub mod raw;
 pub mod tpm_manager;
 pub mod tss;
 
-pub use aws_nitro_enclaves_nsm_api::api as nsm_api;
-use tpm_manager::TpmManager;
+mod error;
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("invalid NSM response")]
-    InvalidNsmResponse,
-    #[error("NSM error response: {0:?}")]
-    NsmErrorResponse(nsm_api::ErrorCode),
-    #[error(transparent)]
-    MessageBuffer(#[from] tss::message_buffer::Error),
-    #[error(transparent)]
-    NsmRequest(#[from] raw::nsm_request::Error),
-    #[error(transparent)]
-    Tss(#[from] tss_esapi::Error),
-}
+pub use aws_nitro_enclaves_nsm_api::api as nsm_api;
+pub use error::*;
+use tpm_manager::TpmManager;
 
 /// Request a NitroTPM attestation document
 pub fn attestation_document(
