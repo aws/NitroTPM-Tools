@@ -6,9 +6,9 @@
 //! Provides a high-level interface for the TPM2 AWS vendor command that is used to send NSM
 //! attestation requests.
 
-pub mod raw;
-pub mod tpm_manager;
-pub mod tss;
+mod raw;
+mod tpm_manager;
+mod tss;
 
 mod error;
 
