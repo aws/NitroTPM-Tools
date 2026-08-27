@@ -9,8 +9,6 @@ pub(crate) enum Error {
     #[error("could not find free NV index handle")]
     NvIndexHandleCapacity,
     #[error(transparent)]
-    TpmManager(#[from] crate::tpm_manager::Error),
-    #[error(transparent)]
     Tss(#[from] tss_esapi::Error),
     #[error(transparent)]
     Serialization(#[from] ciborium::ser::Error<std::io::Error>),
@@ -23,7 +21,7 @@ pub(crate) enum Error {
 }
 
 pub(crate) struct MessageBuffer<'a> {
-    tpm_manager: &'a std::cell::RefCell<crate::TpmManager>,
+    context: &'a mut tss_esapi::Context,
     nv_index_tpm_handle: tss_esapi::handles::NvIndexTpmHandle,
     nv_index_auth: tss_esapi::structures::Auth,
 }
@@ -31,7 +29,7 @@ pub(crate) struct MessageBuffer<'a> {
 impl<'a> MessageBuffer<'a> {
     /// Defines an input/output message buffer
     pub(crate) fn from_request(
-        tpm_manager: &'a std::cell::RefCell<crate::TpmManager>,
+        context: &'a mut tss_esapi::Context,
         nsm_request: &nsm_api::Request,
     ) -> Result<Self, Error> {
         // The plain attestation document (without any optional parameters) will be almost 5 KiB and
@@ -44,8 +42,6 @@ impl<'a> MessageBuffer<'a> {
 
         let nv_index_auth = tss_esapi::structures::Auth::try_from(nv_index_auth)?;
 
-        let mut tpm_manager_ref = tpm_manager.borrow_mut();
-        let context = tpm_manager_ref.tss()?;
         let nv_index_tpm_handle = tss_esapi::handles::NvIndexTpmHandle::try_from(
             context
                 .find_free_handle(
@@ -90,7 +86,7 @@ impl<'a> MessageBuffer<'a> {
         })?;
 
         Ok(Self {
-            tpm_manager,
+            context,
             nv_index_tpm_handle,
             nv_index_auth,
         })
@@ -98,25 +94,24 @@ impl<'a> MessageBuffer<'a> {
 
     /// Reads the NSM response from the message buffer and drops the buffer afterwards
     pub(crate) fn into_response(self) -> Result<nsm_api::Response, Error> {
-        self.tpm_manager
-            .borrow_mut()
-            .tss()?
-            .execute_with_password_auth_session(|context| {
-                let nv_index_handle =
-                    context.tr_from_tpm_public(self.nv_index_tpm_handle.into())?;
+        let nv_index_tpm_handle = self.nv_index_tpm_handle;
+        let nv_index_auth = self.nv_index_auth.clone();
 
-                context.tr_set_auth(nv_index_handle, self.nv_index_auth.clone())?;
+        self.context.execute_with_password_auth_session(|context| {
+            let nv_index_handle = context.tr_from_tpm_public(nv_index_tpm_handle.into())?;
 
-                Ok(ciborium::from_reader(
-                    tss_esapi::abstraction::nv::NvOpenOptions::ExistingIndex {
-                        nv_index_handle: self.nv_index_tpm_handle,
-                        auth_handle: tss_esapi::interface_types::resource_handles::NvAuth::NvIndex(
-                            nv_index_handle.into(),
-                        ),
-                    }
-                    .open(context)?,
-                )?)
-            })
+            context.tr_set_auth(nv_index_handle, nv_index_auth.clone())?;
+
+            Ok(ciborium::from_reader(
+                tss_esapi::abstraction::nv::NvOpenOptions::ExistingIndex {
+                    nv_index_handle: nv_index_tpm_handle,
+                    auth_handle: tss_esapi::interface_types::resource_handles::NvAuth::NvIndex(
+                        nv_index_handle.into(),
+                    ),
+                }
+                .open(context)?,
+            )?)
+        })
     }
 
     pub(crate) fn index(&self) -> tss_esapi::handles::NvIndexTpmHandle {
@@ -130,13 +125,12 @@ impl<'a> MessageBuffer<'a> {
 
 impl Drop for MessageBuffer<'_> {
     fn drop(&mut self) {
-        self.tpm_manager
-            .borrow_mut()
-            .tss()
-            .expect("Failed to get context")
+        let nv_index_tpm_handle = self.nv_index_tpm_handle;
+
+        self.context
             .execute_with_password_auth_session(|context| {
                 let nv_index_handle = context
-                    .tr_from_tpm_public(self.nv_index_tpm_handle.into())
+                    .tr_from_tpm_public(nv_index_tpm_handle.into())
                     .expect("Failed to construct TPM into TSS handle");
 
                 context.nv_undefine_space(
