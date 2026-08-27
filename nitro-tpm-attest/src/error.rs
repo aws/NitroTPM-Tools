@@ -35,6 +35,27 @@ impl From<raw::Error> for Error {
     }
 }
 
+impl Error {
+    /// Whether the resource manager rejected the vendor command as unsupported, without the TPM
+    /// seeing it
+    pub(crate) fn is_unsupported_command(&self) -> bool {
+        // The kernel answers a command it does not carry with TPM2_RC_COMMAND_CODE in the layer of
+        // its resource manager, which tss2_common.h numbers 11
+        const RESOURCE_MANAGER_COMMAND_CODE: tss_esapi::tss2_esys::TSS2_RC =
+            tss_esapi::constants::tss::TPM2_RC_COMMAND_CODE
+                | (11 << tss_esapi::tss2_esys::TSS2_RC_LAYER_SHIFT);
+
+        let Self::Other(OtherError(OtherErrorKind::NsmRequest(raw::Error::TpmErrorResponse(
+            tss_esapi::constants::response_code::Tss2ResponseCode::FormatZero(response_code),
+        )))) = self
+        else {
+            return false;
+        };
+
+        response_code.0 == RESOURCE_MANAGER_COMMAND_CODE
+    }
+}
+
 /// Failure of opening a TPM transport, naming the device it was opened on
 #[derive(thiserror::Error, Debug)]
 #[error("could not open the TPM device {device_path:?}")]

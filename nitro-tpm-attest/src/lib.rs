@@ -6,9 +6,12 @@
 //! Provides a high-level interface for the TPM2 AWS vendor command that is used to send NSM
 //! attestation requests.
 //!
-//! The TSS and the vendor command both go through the kernel resource manager, which admits many
-//! users at a time, so a concurrent invocation cannot take the TPM away mid-request. The resource
-//! manager device is configurable through TPM_RESOURCE_MANAGER_DEVICE.
+//! Everything goes through the kernel resource manager, which admits many users at a time, so a
+//! concurrent invocation cannot take the TPM away mid-request. Only the vendor command can be
+//! refused there, because a kernel before 6.3 masks the vendor bit off the command codes the TPM
+//! reports and so never matches one, and the request then falls back to the TPM device, which
+//! admits a single user. Both paths are configurable through TPM_RESOURCE_MANAGER_DEVICE and
+//! TPM_DEVICE.
 
 mod raw;
 mod tss;
@@ -30,6 +33,9 @@ pub fn attestation_document(
         public_key: public_key.map(Into::into),
     };
 
+    let tpm_device_path = std::path::PathBuf::from(
+        std::env::var_os("TPM_DEVICE").unwrap_or_else(|| "/dev/tpm0".into()),
+    );
     let tpm_resource_manager_device_path = std::path::PathBuf::from(
         std::env::var_os("TPM_RESOURCE_MANAGER_DEVICE")
             // An empty variable would take the TSS to /dev/tpm0 and open nothing at all for the
@@ -52,11 +58,22 @@ pub fn attestation_document(
 
     let message_buffer = tss::MessageBuffer::from_request(&mut context, &nsm_request)?;
 
-    let mut tpm = raw::Tpm::new(&tpm_resource_manager_device_path).map_err(|error| OpenError {
-        device_path: tpm_resource_manager_device_path.clone(),
-        source: error.into(),
+    let send_nsm_request = |device_path| {
+        let mut tpm = raw::Tpm::new(device_path).map_err(|error| OpenError {
+            device_path: device_path.into(),
+            source: error.into(),
+        })?;
+
+        Ok::<_, Error>(tpm.nsm_request(message_buffer.index(), message_buffer.auth())?)
+    };
+
+    send_nsm_request(&tpm_resource_manager_device_path).or_else(|error| {
+        if !error.is_unsupported_command() {
+            return Err(error);
+        }
+
+        send_nsm_request(&tpm_device_path)
     })?;
-    tpm.nsm_request(message_buffer.index(), message_buffer.auth())?;
 
     match message_buffer.into_response()? {
         nsm_api::Response::Attestation { document } => Ok(document),
