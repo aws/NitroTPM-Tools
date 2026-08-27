@@ -72,8 +72,9 @@ openssl cms \
 
 ### TPM devices
 
-Both the TSS and the NSM vendor command go through the kernel resource manager, `/dev/tpmrm0`, which admits many users at a time. It can be redirected:
+Both the TSS and the NSM vendor command go through the kernel resource manager, `/dev/tpmrm0`, which admits many users at a time. A kernel before 6.3 does not carry the vendor command there, so the vendor command falls back to `/dev/tpm0`, which admits a single user. Either path can be redirected:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `TPM_RESOURCE_MANAGER_DEVICE` | `/dev/tpmrm0` | The resource manager both the TSS and the vendor command go through |
+| `TPM_DEVICE` | `/dev/tpm0` | The device the vendor command falls back to |
