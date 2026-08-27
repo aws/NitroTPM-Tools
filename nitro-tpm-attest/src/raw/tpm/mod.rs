@@ -29,7 +29,7 @@ impl Tpm {
         Ok(Self { device })
     }
 
-    pub(super) fn nsm_request(
+    pub(crate) fn nsm_request(
         &mut self,
         nv_index: tss_esapi::handles::NvIndexTpmHandle,
         auth: &tss_esapi::structures::Auth,

@@ -69,3 +69,11 @@ openssl cms \
     -inform DER \
     -in <(base64 --decode <<< "$plaintext_cms")
 ```
+
+### TPM devices
+
+Both the TSS and the NSM vendor command go through the kernel resource manager, `/dev/tpmrm0`, which admits many users at a time. It can be redirected:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TPM_RESOURCE_MANAGER_DEVICE` | `/dev/tpmrm0` | The resource manager both the TSS and the vendor command go through |
