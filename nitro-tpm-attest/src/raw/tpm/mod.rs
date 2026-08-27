@@ -10,8 +10,6 @@ pub enum Error {
     #[error("TPM error response: {0}")]
     TpmErrorResponse(tss_esapi::constants::response_code::Tss2ResponseCode),
     #[error(transparent)]
-    Tss(#[from] tss_esapi::Error),
-    #[error(transparent)]
     Io(#[from] std::io::Error),
 }
 
