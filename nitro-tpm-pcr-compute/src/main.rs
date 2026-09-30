@@ -13,6 +13,7 @@ use pcr::Pcr;
 
 /// Precompute selected TPM PCRs of a unified kernel image (UKI)
 #[derive(clap::Parser)]
+#[command(version)]
 struct Arguments {
     /// Path of an EFI image file
     ///
