@@ -182,13 +182,15 @@ where
                 // AL2023 on aarch64 UKIs currently come without the .sdmagic section
                 .or_else(|error| al2023_stub_major_version.ok_or(error))?;
             let skip_kernel_measurement =
+                    // https://github.com/systemd/systemd/pull/24777
+                    // Systemd-stub version 252 starts to load the kernel image with the firmware
                     // https://github.com/systemd/systemd/pull/37372
                     // Systemd-stub version 258 starts to load and run the kernel image directly
-                    stub_major_version >= 258
+                    !(252..258).contains(&stub_major_version)
                     // https://github.com/systemd/systemd/pull/24777
                     // Systemd-stub version 252 starts to bypass the security protocol to allow
                     // loading unsigned kernel images
-                    || stub_major_version >= 252 && secure_boot_arguments.secure_boot_enabled();
+                    || secure_boot_arguments.secure_boot_enabled();
 
             if skip_kernel_measurement {
                 continue;
