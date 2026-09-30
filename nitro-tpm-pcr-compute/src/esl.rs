@@ -1,8 +1,8 @@
 // Copyright 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-pub fn try_from(mut data: &[u8]) -> Option<std::vec::Vec<EfiSignatureList>> {
-    let mut efi_signature_lists = std::vec::Vec::new();
+pub(crate) fn try_from(mut data: &[u8]) -> Option<Vec<EfiSignatureList>> {
+    let mut efi_signature_lists = Vec::new();
 
     while !data.is_empty() {
         let (efi_signature_list, remaining_data) = EfiSignatureList::try_parse(data)?;
@@ -16,12 +16,12 @@ pub fn try_from(mut data: &[u8]) -> Option<std::vec::Vec<EfiSignatureList>> {
 
 #[derive(Debug)]
 pub(crate) struct EfiSignatureList {
-    pub signature_type: uuid::Uuid,
-    pub signatures: Vec<EfiSignatureData>,
+    pub(crate) signature_type: uuid::Uuid,
+    pub(crate) signatures: Vec<EfiSignatureData>,
 }
 
 impl EfiSignatureList {
-    pub fn try_parse(data: &[u8]) -> Option<(Self, &[u8])> {
+    pub(crate) fn try_parse(data: &[u8]) -> Option<(Self, &[u8])> {
         let (signature_type, data) = data.split_at_checked(std::mem::size_of::<uuid::Bytes>())?;
         let signature_type = uuid::Uuid::from_slice_le(signature_type).ok()?;
 
@@ -42,7 +42,7 @@ impl EfiSignatureList {
             - 3 * std::mem::size_of::<u32>() as u32
             - signature_header_size)
             / signature_size;
-        let mut signatures = std::vec::Vec::with_capacity(signature_count.try_into().ok()?);
+        let mut signatures = Vec::with_capacity(signature_count.try_into().ok()?);
 
         while !data.is_empty() {
             let (signature, remaining_data) = EfiSignatureData::try_parse(data, signature_size)?;
@@ -62,8 +62,8 @@ impl EfiSignatureList {
 
 #[derive(Hash, PartialEq, Eq, Debug)]
 pub(crate) struct EfiSignatureData {
-    pub signature_owner: uuid::Uuid,
-    pub signature_data: std::vec::Vec<u8>,
+    pub(crate) signature_owner: uuid::Uuid,
+    pub(crate) signature_data: Vec<u8>,
 }
 
 impl EfiSignatureData {
