@@ -51,37 +51,31 @@ impl SecureBootArguments {
         [u8::from(self.secure_boot_enabled()); 1]
     }
 
-    fn platform_key(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.platform_key
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn platform_key(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("PK", self.platform_key.as_deref())
     }
 
-    fn key_exchange_key(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.key_exchange_key
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn key_exchange_key(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("KEK", self.key_exchange_key.as_deref())
     }
 
-    fn signature_database(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.signature_database
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn signature_database(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("db", self.signature_database.as_deref())
     }
 
-    fn signature_denylist_database(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.signature_denylist_database
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn signature_denylist_database(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("dbx", self.signature_denylist_database.as_deref())
     }
+}
+
+/// Reads a database file, where no file is an empty database
+fn read_database(name: &str, path: Option<&std::path::Path>) -> anyhow::Result<Vec<u8>> {
+    path.map(|path| {
+        std::fs::read(path)
+            .with_context(|| format!("Could not read {name} database from {}", path.display()))
+    })
+    .transpose()
+    .map(Option::unwrap_or_default)
 }
 
 fn main() -> anyhow::Result<()> {
