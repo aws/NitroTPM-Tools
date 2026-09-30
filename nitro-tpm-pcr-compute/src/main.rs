@@ -108,7 +108,8 @@ fn main() -> anyhow::Result<()> {
     build_info.add_measurement(7, pcr7(ALGORITHM, &arguments.secure_boot, &images)?);
     build_info.add_measurement(12, Pcr::new(ALGORITHM).into());
 
-    println!("{build_info}");
+    std::io::Write::write_all(&mut std::io::stdout(), format!("{build_info}\n").as_bytes())
+        .context("Could not write the measurements")?;
 
     Ok(())
 }
