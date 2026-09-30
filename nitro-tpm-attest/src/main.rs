@@ -3,6 +3,7 @@
 
 /// Request a TPM attestation document from NitroTPM
 #[derive(clap::Parser)]
+#[command(version)]
 struct Arguments {
     /// Path of user data to optionally include
     #[arg(short, long)]
