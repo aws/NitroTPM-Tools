@@ -11,7 +11,7 @@ use build_info::BuildInfo;
 use hasher::Hasher;
 use pcr::Pcr;
 
-/// Precompute selected TPM PCRs of an unified kernel image (UKI)
+/// Precompute selected TPM PCRs of a unified kernel image (UKI)
 #[derive(clap::Parser)]
 struct Arguments {
     /// Path of an EFI image file
@@ -140,10 +140,10 @@ where
 
     // an EV_SEPARATOR event MUST be recorded in the event log for PCR[0-7] prior to the first
     // invocation of the first Ready to Boot call
-    let seperator_hash = seperator_hash(algorithm);
+    let separator_hash = separator_hash(algorithm);
 
-    log::debug!("[PCR4] EV_SEPARATOR: {seperator_hash:?}");
-    pcr4.extend(&seperator_hash);
+    log::debug!("[PCR4] EV_SEPARATOR: {separator_hash:?}");
+    pcr4.extend(&separator_hash);
 
     // For the UEFI application code PE/COFF image described by the boot variable, Platform Firmware
     // MUST record the EV_EFI_BOOT_SERVICES_APPLICATION into PCR[4].
@@ -190,7 +190,7 @@ where
                     // Systemd-stub version 258 starts to load and run the kernel image directly
                     stub_major_version >= 258
                     // https://github.com/systemd/systemd/pull/24777
-                    // Systemd-stub version 252 starts to bypasses the security protocol to allow
+                    // Systemd-stub version 252 starts to bypass the security protocol to allow
                     // loading unsigned kernel images
                     || stub_major_version >= 252 && secure_boot_arguments.secure_boot_enabled();
 
@@ -288,10 +288,10 @@ where
     pcr7.extend(&dbx_hash);
 
     // The system SHALL measure the EV_SEPARATOR event in PCR[7]
-    let seperator_hash = seperator_hash(algorithm);
+    let separator_hash = separator_hash(algorithm);
 
-    log::debug!("[PCR7] EV_SEPARATOR: {seperator_hash:?}");
-    pcr7.extend(&seperator_hash);
+    log::debug!("[PCR7] EV_SEPARATOR: {separator_hash:?}");
+    pcr7.extend(&separator_hash);
 
     // The EV_EFI_VARIABLE_AUTHORITY measurement in step 6 is not required if the value of the
     // SecureBoot variable is 00h (off).
@@ -373,7 +373,7 @@ where
     Ok(pcr7.into())
 }
 
-fn seperator_hash(algorithm: &'static aws_lc_rs::digest::Algorithm) -> aws_lc_rs::digest::Digest {
+fn separator_hash(algorithm: &'static aws_lc_rs::digest::Algorithm) -> aws_lc_rs::digest::Digest {
     aws_lc_rs::digest::digest(algorithm, &[0u8; 4])
 }
 
