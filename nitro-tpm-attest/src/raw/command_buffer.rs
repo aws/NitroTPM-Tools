@@ -25,26 +25,6 @@ impl Builder {
         self
     }
 
-    pub(super) fn add_sized_buffer(mut self, data: &[u8]) -> Self {
-        self.buffer
-            .extend_from_slice(&(data.len() as u16).to_be_bytes());
-        self.buffer.extend_from_slice(data);
-
-        self
-    }
-
-    pub(super) fn add_u8(mut self, value: impl Into<u8>) -> Self {
-        self.buffer.extend_from_slice(&value.into().to_be_bytes());
-
-        self
-    }
-
-    pub(super) fn add_u16(mut self, value: impl Into<u16>) -> Self {
-        self.buffer.extend_from_slice(&value.into().to_be_bytes());
-
-        self
-    }
-
     pub(super) fn add_u32(mut self, value: impl Into<u32>) -> Self {
         self.buffer.extend_from_slice(&value.into().to_be_bytes());
 

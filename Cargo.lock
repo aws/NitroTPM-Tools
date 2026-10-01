@@ -1657,7 +1657,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-tpm-attest"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -1668,8 +1668,6 @@ dependencies = [
  "ciborium",
  "clap",
  "openssl",
- "picky-asn1-der",
- "picky-asn1-x509",
  "semver",
  "serde",
  "serde_bytes",
