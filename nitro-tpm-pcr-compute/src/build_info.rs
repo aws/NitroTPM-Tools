@@ -17,10 +17,10 @@ struct Measurements {
 }
 
 impl BuildInfo {
-    pub(crate) fn new<Hasher: std::fmt::Debug>(hasher: &Hasher) -> Self {
+    pub(crate) fn new(hash_algorithm: &str) -> Self {
         Self {
             measurements: Measurements {
-                hash_algorithm: format!("{hasher:?}"),
+                hash_algorithm: hash_algorithm.to_owned(),
                 pcrs: Default::default(),
             },
         }
@@ -63,4 +63,29 @@ where
     }
 
     map_serializer.end()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializes_the_hash_algorithm_and_the_measurements() {
+        let mut build_info = BuildInfo::new(crate::ALGORITHM_NAME);
+
+        // Out of order, as the output is sorted by index
+        build_info.add_measurement(12, aws_lc_rs::digest::digest(crate::ALGORITHM, b"pcr12"));
+        build_info.add_measurement(4, aws_lc_rs::digest::digest(crate::ALGORITHM, b"pcr4"));
+
+        assert_eq!(
+            build_info.to_string(),
+            r#"{
+  "Measurements": {
+    "HashAlgorithm": "SHA384",
+    "PCR4": "baa47e59f5ab7e026ffe0b85cf86e5a34494da6fb5a10e91eeb7ab839764a0d280a3ce5fd3dfc9c1225b75aa7e4820ca",
+    "PCR12": "38620c0ff9b8a29cd903205c2ed1e24a92eb4e8a25668c5b59a5e50960f0df0aee70f0c33c10ca645acae477261f1a99"
+  }
+}"#
+        );
+    }
 }

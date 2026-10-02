@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - Unreleased
+
+### nitro-tpm-pcr-compute 1.2.0
+
+#### Added
+- `--version`
+
+#### Fixed
+- A signature database of several signature lists no longer yields a wrong PCR7 or a parse failure
+- PCR4 no longer measures the kernel of a unified kernel image started by a systemd-stub before version 252, which the firmware does not measure either
+- An unreadable PK, KEK, db or dbx file is named in the error
+- A failure to write the measurements is reported instead of panicking
+
 ## [1.1.2] - 2026-05-22
 
 ### nitro-tpm-pcr-compute 1.1.2

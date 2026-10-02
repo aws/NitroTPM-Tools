@@ -24,7 +24,8 @@ cargo run --package nitro-tpm-pcr-compute -- \
     --image <UKI.efi> \
     --PK <PK.esl> \
     --KEK <KEK.esl> \
-    --db <db.esl>
+    --db <db.esl> \
+    --dbx <dbx.esl>
 ```
 
 ## Output

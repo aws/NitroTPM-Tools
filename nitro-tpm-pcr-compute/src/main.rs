@@ -11,8 +11,9 @@ use build_info::BuildInfo;
 use hasher::Hasher;
 use pcr::Pcr;
 
-/// Precompute selected TPM PCRs of an unified kernel image (UKI)
+/// Precompute selected TPM PCRs of a unified kernel image (UKI)
 #[derive(clap::Parser)]
+#[command(version)]
 struct Arguments {
     /// Path of an EFI image file
     ///
@@ -50,42 +51,38 @@ impl SecureBootArguments {
         [u8::from(self.secure_boot_enabled()); 1]
     }
 
-    fn platform_key(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.platform_key
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn platform_key(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("PK", self.platform_key.as_deref())
     }
 
-    fn key_exchange_key(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.key_exchange_key
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn key_exchange_key(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("KEK", self.key_exchange_key.as_deref())
     }
 
-    fn signature_database(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.signature_database
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn signature_database(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("db", self.signature_database.as_deref())
     }
 
-    fn signature_denylist_database(&self) -> Result<Vec<u8>, std::io::Error> {
-        self.signature_denylist_database
-            .as_ref()
-            .map(std::fs::read)
-            .transpose()
-            .map(Option::unwrap_or_default)
+    fn signature_denylist_database(&self) -> anyhow::Result<Vec<u8>> {
+        read_database("dbx", self.signature_denylist_database.as_deref())
     }
 }
 
-fn main() -> anyhow::Result<()> {
-    const ALGORITHM: &aws_lc_rs::digest::Algorithm = &aws_lc_rs::digest::SHA384;
+/// Reads a database file, where no file is an empty database
+fn read_database(name: &str, path: Option<&std::path::Path>) -> anyhow::Result<Vec<u8>> {
+    path.map(|path| {
+        std::fs::read(path)
+            .with_context(|| format!("Could not read {name} database from {}", path.display()))
+    })
+    .transpose()
+    .map(Option::unwrap_or_default)
+}
 
+const ALGORITHM: &aws_lc_rs::digest::Algorithm = &aws_lc_rs::digest::SHA384;
+/// Has to match the name of [`ALGORITHM`]
+const ALGORITHM_NAME: &str = "SHA384";
+
+fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let arguments: Arguments = clap::Parser::parse();
@@ -107,13 +104,14 @@ fn main() -> anyhow::Result<()> {
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 
-    let mut build_info = BuildInfo::new(ALGORITHM);
+    let mut build_info = BuildInfo::new(ALGORITHM_NAME);
 
     build_info.add_measurement(4, pcr4(ALGORITHM, &arguments.secure_boot, &images)?);
     build_info.add_measurement(7, pcr7(ALGORITHM, &arguments.secure_boot, &images)?);
     build_info.add_measurement(12, Pcr::new(ALGORITHM).into());
 
-    println!("{build_info}");
+    std::io::Write::write_all(&mut std::io::stdout(), format!("{build_info}\n").as_bytes())
+        .context("Could not write the measurements")?;
 
     Ok(())
 }
@@ -140,10 +138,10 @@ where
 
     // an EV_SEPARATOR event MUST be recorded in the event log for PCR[0-7] prior to the first
     // invocation of the first Ready to Boot call
-    let seperator_hash = seperator_hash(algorithm);
+    let separator_hash = separator_hash(algorithm);
 
-    log::debug!("[PCR4] EV_SEPARATOR: {seperator_hash:?}");
-    pcr4.extend(&seperator_hash);
+    log::debug!("[PCR4] EV_SEPARATOR: {separator_hash:?}");
+    pcr4.extend(&separator_hash);
 
     // For the UEFI application code PE/COFF image described by the boot variable, Platform Firmware
     // MUST record the EV_EFI_BOOT_SERVICES_APPLICATION into PCR[4].
@@ -186,13 +184,15 @@ where
                 // AL2023 on aarch64 UKIs currently come without the .sdmagic section
                 .or_else(|error| al2023_stub_major_version.ok_or(error))?;
             let skip_kernel_measurement =
+                    // https://github.com/systemd/systemd/pull/24777
+                    // Systemd-stub version 252 starts to load the kernel image with the firmware
                     // https://github.com/systemd/systemd/pull/37372
                     // Systemd-stub version 258 starts to load and run the kernel image directly
-                    stub_major_version >= 258
+                    !(252..258).contains(&stub_major_version)
                     // https://github.com/systemd/systemd/pull/24777
-                    // Systemd-stub version 252 starts to bypasses the security protocol to allow
+                    // Systemd-stub version 252 starts to bypass the security protocol to allow
                     // loading unsigned kernel images
-                    || stub_major_version >= 252 && secure_boot_arguments.secure_boot_enabled();
+                    || secure_boot_arguments.secure_boot_enabled();
 
             if skip_kernel_measurement {
                 continue;
@@ -288,10 +288,10 @@ where
     pcr7.extend(&dbx_hash);
 
     // The system SHALL measure the EV_SEPARATOR event in PCR[7]
-    let seperator_hash = seperator_hash(algorithm);
+    let separator_hash = separator_hash(algorithm);
 
-    log::debug!("[PCR7] EV_SEPARATOR: {seperator_hash:?}");
-    pcr7.extend(&seperator_hash);
+    log::debug!("[PCR7] EV_SEPARATOR: {separator_hash:?}");
+    pcr7.extend(&separator_hash);
 
     // The EV_EFI_VARIABLE_AUTHORITY measurement in step 6 is not required if the value of the
     // SecureBoot variable is 00h (off).
@@ -373,7 +373,7 @@ where
     Ok(pcr7.into())
 }
 
-fn seperator_hash(algorithm: &'static aws_lc_rs::digest::Algorithm) -> aws_lc_rs::digest::Digest {
+fn separator_hash(algorithm: &'static aws_lc_rs::digest::Algorithm) -> aws_lc_rs::digest::Digest {
     aws_lc_rs::digest::digest(algorithm, &[0u8; 4])
 }
 
@@ -392,7 +392,9 @@ fn variable_hash(
         algorithm,
         &[
             uuid.to_bytes_le().as_slice(),
-            variable_name.len().to_le_bytes().as_slice(),
+            (variable_name.encode_utf16().count() as u64)
+                .to_le_bytes()
+                .as_slice(),
             (data.len() as u64).to_le_bytes().as_slice(),
             variable_name_utf16_bytes.as_slice(),
             data,
@@ -410,4 +412,85 @@ fn pe_hash(
     authenticode::authenticode_digest(pe, &mut hasher)?;
 
     Ok(hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn no_secure_boot_arguments() -> SecureBootArguments {
+        SecureBootArguments {
+            platform_key: None,
+            key_exchange_key: None,
+            signature_database: None,
+            signature_denylist_database: None,
+        }
+    }
+
+    /// SHA384(SHA384(zeroes || SHA384("Calling EFI Application from Boot Option"))
+    /// || SHA384(00000000))
+    #[test]
+    fn pcr4_without_images() {
+        const EXPECTED: &str = "70bc457e087464760a8927d6312248dc117663410914ff8b\
+            1e42fd5dc91e16f5fe3f15ca64372d3e47af8b4c53b01df9";
+
+        let secure_boot = no_secure_boot_arguments();
+
+        let pcr4 = pcr4(
+            &aws_lc_rs::digest::SHA384,
+            &secure_boot,
+            &[] as &[object::read::pe::PeFile64],
+        )
+        .expect("pcr4");
+
+        assert_eq!(pcr4.as_ref(), hex::decode(EXPECTED).expect("hex"));
+    }
+
+    /// The UEFI_VARIABLE_DATA of SecureBoot = 00h and of an empty PK, KEK, db and dbx, then the
+    /// separator
+    #[test]
+    fn pcr7_without_secure_boot() {
+        const EXPECTED: &str = "98441c7f7625d10058c47683aec486ce311c633235eb5555\
+            93a7ee791121e3578ae72d04ecef661f272d59058b77af35";
+
+        let secure_boot = no_secure_boot_arguments();
+
+        let pcr7 = pcr7(
+            &aws_lc_rs::digest::SHA384,
+            &secure_boot,
+            &[] as &[object::read::pe::PeFile64],
+        )
+        .expect("pcr7");
+
+        assert_eq!(pcr7.as_ref(), hex::decode(EXPECTED).expect("hex"));
+    }
+
+    #[test]
+    fn variable_hash_matches_uefi_variable_data_layout() {
+        const EFI_GLOBAL_VARIABLE_GUID: uuid::Uuid =
+            uuid::uuid!("8be4df61-93ca-11d2-aa0d-00e098032b8c");
+        // SHA384 of the UEFI_VARIABLE_DATA of the name below with the data 01h
+        const EXPECTED: &str = "d015044410429512d6493a597e9e38fe3ead58e9723f049d\
+            bb1b76a4ff722b7fa0eb5d899bde2014cdf55336def6ae8b";
+
+        let name = "Secure\u{fc}Boot\u{1f600}";
+
+        assert_eq!(
+            (
+                name.len(),
+                name.chars().count(),
+                name.encode_utf16().count()
+            ),
+            (16, 12, 13)
+        );
+
+        let variable_hash = variable_hash(
+            &aws_lc_rs::digest::SHA384,
+            &EFI_GLOBAL_VARIABLE_GUID,
+            name,
+            b"\x01",
+        );
+
+        assert_eq!(variable_hash.as_ref(), hex::decode(EXPECTED).expect("hex"));
+    }
 }

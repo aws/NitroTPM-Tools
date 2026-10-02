@@ -1681,7 +1681,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-tpm-pcr-compute"
-version = "1.1.2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "authenticode",
@@ -1689,6 +1689,7 @@ dependencies = [
  "clap",
  "digest 0.10.7",
  "env_logger",
+ "hex",
  "log",
  "object",
  "serde",
