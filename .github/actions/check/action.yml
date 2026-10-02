@@ -1,10 +1,12 @@
 name: Check
-description: Build, lint, document and package the workspace
+description: Build, test, lint, document and package the workspace
 runs:
   using: composite
   steps:
     - shell: bash
       run: cargo build --all-targets --locked
+    - shell: bash
+      run: cargo test --locked
     - shell: bash
       run: cargo clippy --all-targets -- -D warnings
     - shell: bash
