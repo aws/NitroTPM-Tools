@@ -1,0 +1,15 @@
+name: Check
+description: Build, lint, document and package the workspace
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: cargo build --all-targets --locked
+    - shell: bash
+      run: cargo clippy --all-targets -- -D warnings
+    - shell: bash
+      run: cargo fmt --all -- --check
+    - shell: bash
+      run: cargo doc --no-deps
+    - shell: bash
+      run: cargo package --locked --workspace

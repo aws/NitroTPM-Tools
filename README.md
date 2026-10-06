@@ -15,7 +15,7 @@ For static linking requirements, a Docker-based build environment is provided th
 
 ```console
 docker build --file docker/builder.Dockerfile --tag nitro-tpm-tools-builder .
-docker run --rm --tty --volume cargo-cache:/root/.cargo/registry --volume $PWD:/mnt nitro-tpm-tools-builder cargo build --bins --release
+docker run --rm --tty --volume cargo-cache:/root/.cargo/registry --volume "$PWD:/mnt" nitro-tpm-tools-builder cargo build --bins --release
 ```
 
 ## Security

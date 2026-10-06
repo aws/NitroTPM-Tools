@@ -32,6 +32,7 @@ runs:
       working-directory: ${{ steps.source.outputs.path }}
       run: |
         ./configure \
+          --enable-option-checking=fatal \
           --prefix=/usr/local \
           --disable-fapi \
           --disable-vendor \

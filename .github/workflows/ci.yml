@@ -4,45 +4,69 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_call:
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
 jobs:
-  ci:
+  stable:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - rust_toolchain: stable
-            tpm2_tss_version: "4.1.3"
-          # AL2023 dependency versions
-          - rust_toolchain: "1.93"
-            tpm2_tss_version: "4.0.2"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: toolchain
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - id: manifest
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | jq --raw-output --exit-status '.metadata."tpm2-tss".version')"
+
+          echo "tpm2-tss-version=$version" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/tpm2-tss
+        with:
+          version: ${{ steps.manifest.outputs.tpm2-tss-version }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-${{ matrix.rust_toolchain }}-${{ matrix.tpm2_tss_version }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: ./.github/actions/tpm2-tss
+          key: ${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-tpm2-tss-${{ steps.manifest.outputs.tpm2-tss-version }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: ./.github/actions/check
+  amazon-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [ "2023", "2027" ]
+    container: amazonlinux:${{ matrix.version }}
+    steps:
+      - run: >-
+          dnf install --assumeyes --setopt=install_weak_deps=False
+          git tar gzip gcc pkgconf-pkg-config openssl-devel rust cargo clippy rustfmt tpm2-tss-devel
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: packages
+        run: echo "versions=$(rpm --query --queryformat '%{NAME}-%{VERSION}-%{RELEASE}-' rust tpm2-tss-devel)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          version: ${{ matrix.tpm2_tss_version }}
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust_toolchain }}
-          components: clippy, rustfmt
-      - run: cargo build --all-targets --locked
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo fmt --all -- --check
-      - run: cargo doc --no-deps
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: amazon-linux-${{ matrix.version }}-${{ steps.packages.outputs.versions }}cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: ./.github/actions/check
   static-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker build --file docker/builder.Dockerfile --tag nitro-tpm-tools-builder .
-      - run: docker run --rm --tty --volume cargo-cache:/root/.cargo/registry --volume $PWD:/mnt nitro-tpm-tools-builder cargo build --bins --examples --locked
-      - run: readelf -l ./target/debug/nitro-tpm-attest | grep -q "INTERP" && exit 1 || exit 0
-      - run: readelf -l ./target/debug/nitro-tpm-pcr-compute | grep -q "INTERP" && exit 1 || exit 0
-      - run: readelf -l ./target/debug/examples/nitro-tpm-kms-decrypt | grep -q "INTERP" && exit 1 || exit 0
+      - run: docker run --rm --tty --volume cargo-cache:/root/.cargo/registry --volume "$PWD:/mnt" nitro-tpm-tools-builder cargo build --bins --examples --locked
+      - run: readelf --program-headers ./target/debug/nitro-tpm-attest > headers && ! grep INTERP headers
+      - run: readelf --program-headers ./target/debug/nitro-tpm-pcr-compute > headers && ! grep INTERP headers
+      - run: readelf --program-headers ./target/debug/examples/nitro-tpm-kms-decrypt > headers && ! grep INTERP headers
