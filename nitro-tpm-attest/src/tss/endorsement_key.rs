@@ -93,23 +93,29 @@ impl<'a> EndorsementKey<'a> {
 
 impl Drop for EndorsementKey<'_> {
     fn drop(&mut self) {
-        self.tpm_manager
-            .borrow_mut()
-            .tss()
-            .expect("Failed to get context")
-            .execute_with_nullauth_session(|context| {
-                let object_handle = context
-                    .tr_from_tpm_public(self.tpm_handle())
-                    .expect("Failed to get TPM handle");
-
-                context.evict_control(
-                    tss_esapi::interface_types::resource_handles::Provision::Owner,
-                    object_handle,
-                    tss_esapi::interface_types::dynamic_handles::Persistent::Persistent(
-                        self.persistent_tpm_handle,
-                    ),
-                )
-            })
-            .expect("Failed to evict persistent handle");
+        // Best effort: a destructor must not panic (a panic here during
+        // an unwind aborts the process). A failed evict leaves the
+        // handle for a later host-level cleanup; that is strictly
+        // better than taking the caller down.
+        let result: Result<(), String> = (|| {
+            let mut tpm_manager = self.tpm_manager.borrow_mut();
+            let context = tpm_manager.tss().map_err(|e| format!("{e:?}"))?;
+            context
+                .execute_with_nullauth_session(|context| {
+                    let object_handle = context.tr_from_tpm_public(self.tpm_handle())?;
+                    context.evict_control(
+                        tss_esapi::interface_types::resource_handles::Provision::Owner,
+                        object_handle,
+                        tss_esapi::interface_types::dynamic_handles::Persistent::Persistent(
+                            self.persistent_tpm_handle,
+                        ),
+                    )?;
+                    Ok::<_, tss_esapi::Error>(())
+                })
+                .map_err(|e| format!("{e:?}"))
+        })();
+        if let Err(error) = result {
+            debug_assert!(false, "failed to evict persistent handle: {error}");
+        }
     }
 }
