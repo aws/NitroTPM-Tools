@@ -8,7 +8,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
     '.github/workflows/publish.yml':
         - 'actions/checkout@v7.0.1'
-        - 'rust-lang/crates-io-auth-action@v1.0.5'
+        - 'rust-lang/crates-io-auth-action@v1.0.6'
 dependencies:
     'actions/cache@v6.1.0':
         ref: 'v6.1.0'
@@ -20,8 +20,8 @@ dependencies:
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
         owner_id: 44036562
         repo_id: 197814629
-    'rust-lang/crates-io-auth-action@v1.0.5':
-        ref: 'v1.0.5'
-        commit: 'sha1-c6f97d42243bad5fab37ca0427f495c86d5b1a18'
+    'rust-lang/crates-io-auth-action@v1.0.6':
+        ref: 'v1.0.6'
+        commit: 'sha1-3268eb413133e2960fa4ae0e963ca76380c54cd9'
         owner_id: 5430905
         repo_id: 1008931044
