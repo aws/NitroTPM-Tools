@@ -71,41 +71,55 @@ impl<'a> MessageBuffer<'a> {
             .with_data_area_size(SIZE)
             .build()?;
 
-        let name = context.execute_with_salted_auth_session(salt_key_tpm_handle, |context| {
-            let nv_index_handle = context.nv_define_space(
-                tss_esapi::interface_types::resource_handles::Provision::Owner,
-                Some(nv_index_auth.clone()),
-                nv_public,
-            )?;
+        // Define the index in its own session, then construct the buffer
+        // (whose destructor undefines the index) BEFORE the fallible
+        // write/read steps: an error in any later step must unwind
+        // through that destructor instead of leaking the defined index.
+        let nv_index_handle =
+            context.execute_with_salted_auth_session(salt_key_tpm_handle, |context| {
+                context.nv_define_space(
+                    tss_esapi::interface_types::resource_handles::Provision::Owner,
+                    Some(nv_index_auth.clone()),
+                    nv_public,
+                )
+            })?;
+        // Release the manager borrow before the buffer exists: the
+        // buffer's destructor re-borrows it, so no borrow may be live
+        // when an early return drops the buffer.
+        drop(tpm_manager_ref);
+        let buffer = Self {
+            tpm_manager,
+            nv_index_tpm_handle,
+            salt_key_tpm_handle,
+            nv_index_auth,
+        };
 
-            ciborium::into_writer(
-                &nsm_request,
-                &mut tss_esapi::abstraction::nv::NvOpenOptions::ExistingIndex {
-                    nv_index_handle: nv_index_tpm_handle,
-                    auth_handle: tss_esapi::interface_types::resource_handles::NvAuth::NvIndex(
-                        nv_index_handle,
-                    ),
-                }
-                .open(context)?,
-            )?;
+        let name = {
+            let mut tpm_manager_ref = tpm_manager.borrow_mut();
+            let context = tpm_manager_ref.tss()?;
+            context.execute_with_salted_auth_session(salt_key_tpm_handle, |context| {
+                ciborium::into_writer(
+                    &nsm_request,
+                    &mut tss_esapi::abstraction::nv::NvOpenOptions::ExistingIndex {
+                        nv_index_handle: buffer.nv_index_tpm_handle,
+                        auth_handle: tss_esapi::interface_types::resource_handles::NvAuth::NvIndex(
+                            nv_index_handle,
+                        ),
+                    }
+                    .open(context)?,
+                )?;
 
-            let nv_index_handle = context.tr_from_tpm_public(nv_index_tpm_handle.into())?;
-            let name = context
-                .nv_read_public(nv_index_handle.into())
-                .map(|(_, name)| name)?;
+                let nv_index_handle =
+                    context.tr_from_tpm_public(buffer.nv_index_tpm_handle.into())?;
+                let name = context
+                    .nv_read_public(nv_index_handle.into())
+                    .map(|(_, name)| name)?;
 
-            Ok::<_, Error>(name)
-        })?;
+                Ok::<_, Error>(name)
+            })
+        }?;
 
-        Ok((
-            Self {
-                tpm_manager,
-                nv_index_tpm_handle,
-                salt_key_tpm_handle,
-                nv_index_auth,
-            },
-            name,
-        ))
+        Ok((buffer, name))
     }
 
     /// Reads the NSM response from the message buffer and drops the buffer afterwards
@@ -142,20 +156,27 @@ impl<'a> MessageBuffer<'a> {
 
 impl Drop for MessageBuffer<'_> {
     fn drop(&mut self) {
-        self.tpm_manager
-            .borrow_mut()
-            .tss()
-            .expect("Failed to get context")
-            .execute_with_nullauth_session(|context| {
-                let nv_index_handle = context
-                    .tr_from_tpm_public(self.nv_index_tpm_handle.into())
-                    .expect("Failed to construct TPM into TSS handle");
-
-                context.nv_undefine_space(
-                    tss_esapi::interface_types::resource_handles::Provision::Owner,
-                    nv_index_handle.into(),
-                )
-            })
-            .expect("Failed to undefine message buffer");
+        // Best effort: a destructor must not panic (a panic here during
+        // an unwind aborts the process). A failed undefine leaves the
+        // index for a later host-level cleanup; that is strictly better
+        // than taking the caller down.
+        let result: Result<(), String> = (|| {
+            let mut tpm_manager = self.tpm_manager.borrow_mut();
+            let context = tpm_manager.tss().map_err(|e| format!("{e:?}"))?;
+            context
+                .execute_with_nullauth_session(|context| {
+                    let nv_index_handle =
+                        context.tr_from_tpm_public(self.nv_index_tpm_handle.into())?;
+                    context.nv_undefine_space(
+                        tss_esapi::interface_types::resource_handles::Provision::Owner,
+                        nv_index_handle.into(),
+                    )?;
+                    Ok::<_, tss_esapi::Error>(())
+                })
+                .map_err(|e| format!("{e:?}"))
+        })();
+        if let Err(error) = result {
+            debug_assert!(false, "failed to undefine message buffer: {error}");
+        }
     }
 }
