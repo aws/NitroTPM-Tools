@@ -11,13 +11,41 @@ pub(crate) enum Error {
     #[error(transparent)]
     Tss(#[from] tss_esapi::Error),
     #[error(transparent)]
-    Serialization(#[from] ciborium::ser::Error<std::io::Error>),
+    Serialization(ciborium::ser::Error<std::io::Error>),
     #[error(transparent)]
-    Deserialization(#[from] ciborium::de::Error<std::io::Error>),
+    Deserialization(ciborium::de::Error<std::io::Error>),
     #[error(transparent)]
     AwsLc(#[from] aws_lc_rs::error::Unspecified),
     #[error(transparent)]
-    Io(#[from] std::io::Error),
+    Io(std::io::Error),
+}
+
+// An NV read or write reports a TSS failure as an I/O error, also inside ciborium's Io variant.
+// These three conversions unwrap it to Error::Tss.
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        error
+            .downcast::<tss_esapi::Error>()
+            .map_or_else(Self::Io, Self::Tss)
+    }
+}
+
+impl From<ciborium::ser::Error<std::io::Error>> for Error {
+    fn from(error: ciborium::ser::Error<std::io::Error>) -> Self {
+        match error {
+            ciborium::ser::Error::Io(error) => error.into(),
+            error => Self::Serialization(error),
+        }
+    }
+}
+
+impl From<ciborium::de::Error<std::io::Error>> for Error {
+    fn from(error: ciborium::de::Error<std::io::Error>) -> Self {
+        match error {
+            ciborium::de::Error::Io(error) => error.into(),
+            error => Self::Deserialization(error),
+        }
+    }
 }
 
 pub(crate) struct MessageBuffer<'a> {
