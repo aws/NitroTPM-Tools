@@ -5,6 +5,8 @@
 
 mod command_buffer;
 
+use crate::tss::ResponseCodeExtension as _;
+
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     #[error("invalid TPM response")]
@@ -16,6 +18,10 @@ pub(crate) enum Error {
 }
 
 const TPM2_VENDOR_AWS_NSM_REQUEST: u32 = 0x20000001;
+
+/// How many times the vendor command is submitted while the TPM answers that it is retryable.
+/// Matches ESYS_MAX_SUBMISSIONS of the TSS, which keeps it in an internal header.
+const MAX_SUBMISSIONS: usize = 5;
 
 pub(crate) struct Tpm {
     device: std::fs::File,
@@ -64,9 +70,14 @@ impl Tpm {
         .add_auth_area(&auth_area)
         .build();
 
-        self.send_command_buffer(&command_buffer)?;
+        for _ in 1..MAX_SUBMISSIONS {
+            match self.send_command_buffer(&command_buffer) {
+                Err(Error::TpmErrorResponse(response_code)) if response_code.is_retryable() => {}
+                result => return result,
+            }
+        }
 
-        Ok(())
+        self.send_command_buffer(&command_buffer)
     }
 
     fn send_command_buffer(&mut self, command_buffer: &[u8]) -> Result<(), Error> {
