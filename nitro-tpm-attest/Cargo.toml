@@ -11,7 +11,7 @@ keywords = ["aws", "nitro", "nitrotpm", "attestation", "tpm"]
 
 [dependencies]
 anyhow = "1.0"
-aws-lc-rs = "1.16"
+aws-lc-rs = "1.19"
 aws-nitro-enclaves-nsm-api = "0.5"
 ciborium = "0.2"
 clap = { version = "4.6", features = ["derive"] }
@@ -25,8 +25,8 @@ tss-esapi-sys = "0.6"
 semver = "1.0"
 
 [dev-dependencies]
-aws-config = "1.8"
-aws-sdk-kms = { version = "1.106", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-config = "1.13"
+aws-sdk-kms = { version = "1.131", default-features = false, features = ["default-https-client", "rt-tokio"] }
 base64ct = { version = "1.8", features = ["alloc"] }
 openssl = "0.10"
 tokio = { version = "1", features = ["full"] }
