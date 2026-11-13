@@ -3,4 +3,4 @@ members = ["nitro-tpm-attest", "nitro-tpm-pcr-compute"]
 resolver = "2"
 
 [workspace.metadata.tpm2-tss]
-version = "4.2.0"
+version = "4.2.2"
