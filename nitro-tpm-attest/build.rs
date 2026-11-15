@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 fn main() {
-    // While tss-esapi 7.6 supports a minimum TSS version of 2.4.6, behavior between major version
-    // differs significantly
+    // tss-esapi supports several TSS major versions, whose behavior differs significantly
     let tss_version_requirement =
         semver::VersionReq::parse("4.0.0").expect("Failed to parse version requirement");
 
