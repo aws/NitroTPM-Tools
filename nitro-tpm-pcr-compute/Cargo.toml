@@ -12,9 +12,9 @@ keywords = ["aws", "nitro", "nitrotpm", "attestation", "tpm"]
 [dependencies]
 anyhow = "1.0"
 authenticode = { version = "0.6", features = ["object", "std"] }
-aws-lc-rs = "1.19"
+aws-lc-rs = { version = "1.19", default-features = false, features = ["aws-lc-sys"] }
 clap = { version = "4.6", features = ["derive"] }
-digest = "0.10"
+digest = { version = "0.10", default-features = false }
 env_logger = "0.11"
 log = "0.4"
 object = { version = "0.39", default-features = false, features = ["pe", "read_core", "std"] }
