@@ -1,4 +1,4 @@
-// Copyright 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
 /// Decrypt a ciphertext with an AWS KMS managed key that is conditional on the instance state

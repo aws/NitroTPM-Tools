@@ -1,4 +1,4 @@
-// Copyright 2026 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Custom function for TPM response codes
