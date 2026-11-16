@@ -13,5 +13,7 @@ runs:
       run: cargo fmt --all -- --check
     - shell: bash
       run: cargo doc --no-deps
+      env:
+        RUSTDOCFLAGS: -D warnings
     - shell: bash
       run: cargo package --locked --workspace
