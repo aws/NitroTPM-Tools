@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 fn main() {
+    // tss-esapi-sys skips the TSS for docs.rs, so there is no version to check and nothing to link
+    if std::env::var("DOCS_RS").is_ok() {
+        return;
+    }
+
     // tss-esapi supports several TSS major versions, whose behavior differs significantly
     let tss_version_requirement =
         semver::VersionReq::parse("4.0.0").expect("the version requirement should parse");
