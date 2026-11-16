@@ -3,7 +3,7 @@
 
 /// Decrypt a ciphertext with an AWS KMS managed key that is conditional on the instance state
 #[derive(clap::Parser)]
-pub struct Arguments {
+struct Arguments {
     /// KMS key ID
     #[arg(short, long)]
     key_id: String,
@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn decrypt(
+async fn decrypt(
     key_id: &str,
     ciphertext: &str,
     attestation_document: Vec<u8>,
@@ -61,10 +61,10 @@ pub async fn decrypt(
 
     let ciphertext_for_recipient = response
         .ciphertext_for_recipient()
-        .ok_or(anyhow::anyhow!("could not get ciphertext for recipient"))?
+        .ok_or_else(|| anyhow::anyhow!("could not get ciphertext for recipient"))?
         .as_ref();
     let plaintext = openssl::cms::CmsContentInfo::from_der(ciphertext_for_recipient)?
         .decrypt_without_cert_check(&private_key)?;
 
-    Ok(String::from_utf8(plaintext.to_vec())?)
+    Ok(String::from_utf8(plaintext)?)
 }
