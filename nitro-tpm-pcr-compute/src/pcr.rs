@@ -12,8 +12,7 @@ impl Pcr {
                 &vec![0u8; algorithm.output_len],
                 algorithm,
             )
-            // SAFETY: algorithm.output_len always matches the algorithm's output size
-            .unwrap(),
+            .expect("a digest of the algorithm's output length should import"),
         }
     }
 
