@@ -441,9 +441,9 @@ mod tests {
             &secure_boot,
             &[] as &[object::read::pe::PeFile64],
         )
-        .expect("pcr4");
+        .expect("PCR4 should be computable without images");
 
-        assert_eq!(pcr4.as_ref(), hex::decode(EXPECTED).expect("hex"));
+        assert_eq!(hex::encode(pcr4), EXPECTED);
     }
 
     /// The UEFI_VARIABLE_DATA of SecureBoot = 00h and of an empty PK, KEK, db and dbx, then the
@@ -460,9 +460,9 @@ mod tests {
             &secure_boot,
             &[] as &[object::read::pe::PeFile64],
         )
-        .expect("pcr7");
+        .expect("PCR7 should be computable without Secure Boot");
 
-        assert_eq!(pcr7.as_ref(), hex::decode(EXPECTED).expect("hex"));
+        assert_eq!(hex::encode(pcr7), EXPECTED);
     }
 
     #[test]
@@ -481,7 +481,8 @@ mod tests {
                 name.chars().count(),
                 name.encode_utf16().count()
             ),
-            (16, 12, 13)
+            (16, 12, 13),
+            "the name should keep the lengths EXPECTED was computed for"
         );
 
         let variable_hash = variable_hash(
@@ -491,6 +492,6 @@ mod tests {
             b"\x01",
         );
 
-        assert_eq!(variable_hash.as_ref(), hex::decode(EXPECTED).expect("hex"));
+        assert_eq!(hex::encode(variable_hash), EXPECTED);
     }
 }

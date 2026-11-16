@@ -112,7 +112,11 @@ mod tests {
         }
         buffer.extend_from_slice(header);
         for signature in signatures {
-            assert_eq!(GUID_SIZE + signature.len(), signature_size);
+            assert_eq!(
+                GUID_SIZE + signature.len(),
+                signature_size,
+                "signatures should be equally sized"
+            );
             buffer.extend_from_slice(&OWNER.to_bytes_le());
             buffer.extend_from_slice(signature);
         }
@@ -125,7 +129,7 @@ mod tests {
 
     #[test]
     fn parses_no_lists_from_empty_data() {
-        assert!(try_from(&[]).expect("parse").is_empty());
+        assert!(try_from(&[]).expect("empty data should parse").is_empty());
     }
 
     /// Written out from the UEFI specification, independent of the fixture helper
@@ -174,7 +178,7 @@ mod tests {
         ];
         const SIGNATURE_OWNER: uuid::Uuid = uuid::uuid!("77fa9abd-0359-4d32-bd60-28f4e78f784b");
 
-        let lists = try_from(DATA).expect("parse");
+        let lists = try_from(DATA).expect("the specified layout should parse");
 
         assert_eq!(lists.len(), 2);
         assert_eq!(lists[0].signature_type, EFI_CERT_SHA256_GUID);
