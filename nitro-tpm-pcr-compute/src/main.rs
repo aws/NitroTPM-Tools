@@ -48,7 +48,7 @@ impl SecureBootArguments {
     }
 
     fn secure_boot(&self) -> [u8; 1] {
-        [u8::from(self.secure_boot_enabled()); 1]
+        [u8::from(self.secure_boot_enabled())]
     }
 
     fn platform_key(&self) -> anyhow::Result<Vec<u8>> {
@@ -181,7 +181,7 @@ where
                         .context("Unexpected .sdmagic section format")?
                         .parse::<u32>()?)
                 })
-                // AL2023 on aarch64 UKIs currently come without the .sdmagic section
+                // AL2023 UKIs on aarch64 come without the .sdmagic section
                 .or_else(|error| al2023_stub_major_version.ok_or(error))?;
             let skip_kernel_measurement =
                     // https://github.com/systemd/systemd/pull/24777
@@ -327,10 +327,9 @@ where
                             .certificates()
                             .map(x509_cert::der::Encode::to_der)
                             .find_map(|certificate| {
-                                // Look up the certificate in the signature database
-                                // Note: This does not validate the signature, validation is left to
-                                // secure boot. Same is true for exclusions of items from the signature
-                                // deny list.
+                                // Look up the certificate in the signature database. This does not
+                                // validate the signature or apply the signature denylist; Secure
+                                // Boot does both.
                                 certificate
                                     .map(|certificate| {
                                         efi_signature_data.iter().find(|efi_signature_data| {
