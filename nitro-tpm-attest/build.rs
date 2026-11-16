@@ -4,7 +4,7 @@
 fn main() {
     // tss-esapi supports several TSS major versions, whose behavior differs significantly
     let tss_version_requirement =
-        semver::VersionReq::parse("4.0.0").expect("Failed to parse version requirement");
+        semver::VersionReq::parse("4.0.0").expect("the version requirement should parse");
 
     let tss_version_string =
         std::env::var("DEP_TSS2_ESYS_VERSION").expect("DEP_TSS2_ESYS_VERSION not set");
