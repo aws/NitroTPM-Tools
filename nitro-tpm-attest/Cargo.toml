@@ -17,6 +17,7 @@ ciborium = "0.2"
 clap = { version = "4.6", features = ["derive"] }
 thiserror = "2.0"
 tss-esapi = "7.7"
+# build.rs needs the TSS version tss-esapi-sys reports; Cargo passes it only to direct dependents
 tss-esapi-sys = "0.6"
 
 [build-dependencies]
