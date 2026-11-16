@@ -117,7 +117,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// TCG PC Client Platform Firmware Profile Specification
-/// 3.3.4.5 PCR[4] – Boot Manager Code and Boot Attempts
+/// 3.3.4.5 PCR\[4\] – Boot Manager Code and Boot Attempts
 fn pcr4<'a, Image>(
     algorithm: &'static aws_lc_rs::digest::Algorithm,
     secure_boot_arguments: &SecureBootArguments,
@@ -212,7 +212,7 @@ where
 }
 
 /// TCG PC Client Platform Firmware Profile Specification
-/// 3.3.4.8 PCR[7] – Secure Boot Policy Measurements
+/// 3.3.4.8 PCR\[7\] – Secure Boot Policy Measurements
 fn pcr7<'a, Image>(
     algorithm: &'static aws_lc_rs::digest::Algorithm,
     secure_boot_arguments: &SecureBootArguments,
