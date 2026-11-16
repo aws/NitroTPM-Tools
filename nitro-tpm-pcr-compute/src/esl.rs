@@ -23,7 +23,7 @@ pub(crate) struct EfiSignatureList {
 }
 
 impl EfiSignatureList {
-    pub(crate) fn try_parse(data: &[u8]) -> Option<(Self, &[u8])> {
+    fn try_parse(data: &[u8]) -> Option<(Self, &[u8])> {
         let (signature_type, data) = data.split_at_checked(GUID_SIZE)?;
         let signature_type = uuid::Uuid::from_slice_le(signature_type).ok()?;
 
@@ -59,7 +59,7 @@ impl EfiSignatureList {
             return None;
         }
 
-        let efi_signature_list = EfiSignatureList {
+        let efi_signature_list = Self {
             signature_type,
             signatures: signatures
                 .map(EfiSignatureData::try_parse)
@@ -80,7 +80,7 @@ impl EfiSignatureData {
     fn try_parse(signature: &[u8]) -> Option<Self> {
         let (signature_owner, signature_data) = signature.split_at_checked(GUID_SIZE)?;
 
-        Some(EfiSignatureData {
+        Some(Self {
             signature_owner: uuid::Uuid::from_slice_le(signature_owner).ok()?,
             signature_data: signature_data.to_vec(),
         })
@@ -98,7 +98,7 @@ mod tests {
     const SIGNATURE_LIST_SIZE_OFFSET: usize = GUID_SIZE;
     const SIGNATURE_SIZE_OFFSET: usize = GUID_SIZE + 2 * std::mem::size_of::<u32>();
 
-    /// Serializes an EFI_SIGNATURE_LIST of equally-sized signatures
+    /// Serializes an EFI_SIGNATURE_LIST of equally sized signatures
     fn signature_list(signature_type: uuid::Uuid, signatures: &[&[u8]], header: &[u8]) -> Vec<u8> {
         let signature_size = GUID_SIZE + signatures.first().map_or(0, |signature| signature.len());
         let signature_list_size = GUID_SIZE
