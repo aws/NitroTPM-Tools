@@ -88,7 +88,7 @@ openssl cms \
 
 ### Retrying a temporary failure
 
-An attestation holds an NV index in the TPM for its duration. On an older kernel whose resource manager does not carry the vendor command, it also holds the TPM device while it sends that command. A TPM has little NV memory to spare and the device admits a single user, so requests running next to each other can run out of either. The request then exits with 75, a temporary failure, and is worth repeating once the other request is done. It also exits with 75 when the TPM keeps answering that a command is retryable through all 5 submissions.
+An attestation holds an NV index in the TPM for its duration. On an older kernel whose resource manager does not carry the vendor command, it also holds the TPM device while it sends that command. A TPM has little NV memory to spare and the device admits a single user, so requests running next to each other can run out of either. The request then exits with 75, a temporary failure, and is worth repeating once the other request is done. It also exits with 75 when the TPM still answers that a command is retryable after the tool has resubmitted it on its own.
 
 ```sh
 attempts=5

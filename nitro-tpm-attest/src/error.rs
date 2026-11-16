@@ -76,9 +76,9 @@ impl Error {
     /// duration. Where the resource manager does not carry the vendor command, it also holds the
     /// TPM device while that command runs. A TPM has little NV memory to spare and the device
     /// admits a single user, so attestations running next to each other can run out of either. A
-    /// TPM can also leave a command unfinished for longer than 5 submissions last. Retrying is left
-    /// to the caller, which knows how long it can wait. This lets it tell such a failure apart from
-    /// any other.
+    /// TPM can also stay unavailable for longer than the request keeps resubmitting a command.
+    /// Retrying is left to the caller, which knows how long it can wait. This lets it tell such a
+    /// failure apart from any other.
     #[must_use]
     pub fn is_temporarily_unavailable(&self) -> bool {
         // Only the TPM device admits a single user, so only there does busy mean another
