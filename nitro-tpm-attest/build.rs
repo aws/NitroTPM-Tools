@@ -16,6 +16,7 @@ fn main() {
         "TPM2 Software Stack (TSS) version {tss_version} not supported, version requirement: {tss_version_requirement}",
     );
 
-    // Allow static linking
+    // A static TSS built without dlopen calls the device TCTI directly, but its pkg-config files
+    // do not list that library
     println!("cargo:rustc-link-arg=-ltss2-tcti-device");
 }
