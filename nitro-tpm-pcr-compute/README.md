@@ -28,6 +28,16 @@ cargo run --package nitro-tpm-pcr-compute -- \
     --dbx <dbx.esl>
 ```
 
+### systemd OS separator
+
+systemd 261 and later can run `systemd-pcrosseparator.service` in the initrd. It extends PCR4, PCR7 and PCR12, among others, with an `os-separator` event. For an image that runs it, set `--systemd-pcrosseparator`:
+
+```console
+cargo run --package nitro-tpm-pcr-compute -- \
+    --image <UKI.efi> \
+    --systemd-pcrosseparator
+```
+
 ## Output
 
 The utility returns measurements in the following JSON format:

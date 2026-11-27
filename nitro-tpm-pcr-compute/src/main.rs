@@ -22,6 +22,12 @@ struct Arguments {
     image: Vec<std::path::PathBuf>,
     #[command(flatten)]
     secure_boot: SecureBootArguments,
+    /// Model the os-separator event of systemd-pcrosseparator.service
+    ///
+    /// systemd 261 and later can run this service in the initrd. Set this flag when the initrd of
+    /// the image runs it.
+    #[arg(long)]
+    systemd_pcrosseparator: bool,
 }
 
 #[derive(clap::Parser)]
@@ -104,11 +110,26 @@ fn main() -> anyhow::Result<()> {
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
 
+    let mut pcrs = [
+        (4, pcr4(ALGORITHM, &arguments.secure_boot, &images)?),
+        (7, pcr7(ALGORITHM, &arguments.secure_boot, &images)?),
+        (12, Pcr::new(ALGORITHM)),
+    ];
+
+    if arguments.systemd_pcrosseparator {
+        let os_separator_hash = os_separator_hash(ALGORITHM);
+
+        for (index, pcr) in &mut pcrs {
+            log::debug!("[PCR{index}] os-separator: {os_separator_hash:?}");
+            pcr.extend(&os_separator_hash);
+        }
+    }
+
     let mut build_info = BuildInfo::new(ALGORITHM_NAME);
 
-    build_info.add_measurement(4, pcr4(ALGORITHM, &arguments.secure_boot, &images)?);
-    build_info.add_measurement(7, pcr7(ALGORITHM, &arguments.secure_boot, &images)?);
-    build_info.add_measurement(12, Pcr::new(ALGORITHM).into());
+    for (index, pcr) in pcrs {
+        build_info.add_measurement(index, pcr.into());
+    }
 
     std::io::Write::write_all(&mut std::io::stdout(), format!("{build_info}\n").as_bytes())
         .context("Could not write the measurements")?;
@@ -122,7 +143,7 @@ fn pcr4<'a, Image>(
     algorithm: &'static aws_lc_rs::digest::Algorithm,
     secure_boot_arguments: &SecureBootArguments,
     images: &'a [Image],
-) -> anyhow::Result<aws_lc_rs::digest::Digest>
+) -> anyhow::Result<Pcr>
 where
     Image: object::Object<'a> + authenticode::PeTrait,
 {
@@ -208,7 +229,7 @@ where
         }
     }
 
-    Ok(pcr4.into())
+    Ok(pcr4)
 }
 
 /// TCG PC Client Platform Firmware Profile Specification
@@ -217,7 +238,7 @@ fn pcr7<'a, Image>(
     algorithm: &'static aws_lc_rs::digest::Algorithm,
     secure_boot_arguments: &SecureBootArguments,
     images: &'a [Image],
-) -> anyhow::Result<aws_lc_rs::digest::Digest>
+) -> anyhow::Result<Pcr>
 where
     Image: object::Object<'a> + authenticode::PeTrait,
 {
@@ -296,7 +317,7 @@ where
     // The EV_EFI_VARIABLE_AUTHORITY measurement in step 6 is not required if the value of the
     // SecureBoot variable is 00h (off).
     if !secure_boot_arguments.secure_boot_enabled() {
-        return Ok(pcr7.into());
+        return Ok(pcr7);
     }
 
     // the UEFI firmware SHALL determine if the entry in the UEFI_IMAGE_SECURITY_DATABASE_GUID/
@@ -369,11 +390,19 @@ where
         pcr7.extend(&efi_signature_data_hash);
     }
 
-    Ok(pcr7.into())
+    Ok(pcr7)
 }
 
 fn separator_hash(algorithm: &'static aws_lc_rs::digest::Algorithm) -> aws_lc_rs::digest::Digest {
     aws_lc_rs::digest::digest(algorithm, &[0u8; 4])
+}
+
+fn os_separator_hash(
+    algorithm: &'static aws_lc_rs::digest::Algorithm,
+) -> aws_lc_rs::digest::Digest {
+    // The word that systemd-pcrosseparator.service passes to systemd-pcrextend, which measures it
+    // without a trailing NUL
+    aws_lc_rs::digest::digest(algorithm, b"os-separator")
 }
 
 fn variable_hash(
@@ -435,12 +464,13 @@ mod tests {
 
         let secure_boot = no_secure_boot_arguments();
 
-        let pcr4 = pcr4(
+        let pcr4: aws_lc_rs::digest::Digest = pcr4(
             &aws_lc_rs::digest::SHA384,
             &secure_boot,
             &[] as &[object::read::pe::PeFile64],
         )
-        .expect("PCR4 should be computable without images");
+        .expect("PCR4 should be computable without images")
+        .into();
 
         assert_eq!(hex::encode(pcr4), EXPECTED);
     }
@@ -454,14 +484,26 @@ mod tests {
 
         let secure_boot = no_secure_boot_arguments();
 
-        let pcr7 = pcr7(
+        let pcr7: aws_lc_rs::digest::Digest = pcr7(
             &aws_lc_rs::digest::SHA384,
             &secure_boot,
             &[] as &[object::read::pe::PeFile64],
         )
-        .expect("PCR7 should be computable without Secure Boot");
+        .expect("PCR7 should be computable without Secure Boot")
+        .into();
 
         assert_eq!(hex::encode(pcr7), EXPECTED);
+    }
+
+    /// The SHA384 digest in systemd's src/pcrlock/pcrlock.d/750-os-separator.pcrlock
+    #[test]
+    fn os_separator_hash_matches_systemd_pcrlock() {
+        const EXPECTED: &str = "5f2a9be7b55475435f46c343bb8c224db427d4fc7cdca42a\
+            c02e50d61c67a8bf0b707f7e1527a5f65175efdf8b56ba24";
+
+        let os_separator_hash = os_separator_hash(&aws_lc_rs::digest::SHA384);
+
+        assert_eq!(hex::encode(os_separator_hash), EXPECTED);
     }
 
     #[test]
